@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Reminder - Coding Goal Tracker</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="glass-bg"></div>
+  <div class="dashboard-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="brand">
+        <div class="logo">
+          <i class="fa-solid fa-fire-flame-curved logo-icon"></i>
+        </div>
+        <div class="brand-text">
+          <h1>Smart Reminder</h1>
+          <p>Daily Coding Goal Tracker</p>
+        </div>
+      </div>
+      <div class="status-badge-container">
+        <span id="current-time-badge" class="time-badge">
+          <i class="fa-regular fa-clock"></i> <span id="clock-display">00:00:00 PM</span>
+        </span>
+      </div>
+    </header>
+
+    <!-- Main Grid -->
+    <div class="main-grid">
+      <!-- Left Column: Streak and Activity Status -->
+      <div class="col-left">
+        <!-- Streak Card -->
+        <div class="card streak-card">
+          <div class="streak-details">
+            <span class="card-label">CURRENT STREAK</span>
+            <div class="streak-value-container">
+              <span id="current-streak" class="streak-value">0</span>
+              <span class="streak-unit">DAYS</span>
+            </div>
+            <p id="streak-motivational-msg">Start your journey today!</p>
+          </div>
+          <div class="streak-visual">
+            <div class="fire-container">
+              <div class="fire-glow"></div>
+              <i class="fa-solid fa-fire fire-icon"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Goal Status Card -->
+        <div class="card status-card" id="status-card">
+          <div class="card-header">
+            <h2>Today's Goal</h2>
+            <button id="check-now-btn" class="btn btn-secondary">
+              <i class="fa-solid fa-rotate"></i> Check Activity
+            </button>
+          </div>
+          <div class="status-info">
+            <div class="status-indicator">
+              <div class="status-circle" id="status-circle">
+                <i class="fa-solid fa-question" id="status-icon"></i>
+              </div>
+              <div class="status-text-block">
+                <h3 id="status-title">Checking status...</h3>
+                <p id="status-desc">Fetching activity data from platforms...</p>
+              </div>
+            </div>
+          </div>
+          <div class="goal-conditions">
+            <div class="condition-item">
+              <i class="fa-solid fa-check-double condition-icon"></i>
+              <span>Solve 1+ problem on LeetCode</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Stats, Calendar & Reminders -->
+      <div class="col-right">
+        <!-- Stats Summary Grid -->
+        <div class="stats-mini-grid">
+          <div class="card stat-box">
+            <span class="stat-label">Longest Streak</span>
+            <div class="stat-content">
+              <i class="fa-solid fa-trophy stat-icon trophy-color"></i>
+              <span id="longest-streak" class="stat-value">0</span>
+            </div>
+          </div>
+          <div class="card stat-box">
+            <span class="stat-label">Total Days Solved</span>
+            <div class="stat-content">
+              <i class="fa-solid fa-calendar-check stat-icon solved-color"></i>
+              <span id="total-solved-days" class="stat-value">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reminder Timeline Card -->
+        <div class="card reminders-card">
+          <div class="card-header">
+            <h2>Reminder Schedule</h2>
+            <button id="test-email-btn" class="btn btn-icon" title="Send test check & email">
+              <i class="fa-solid fa-envelope"></i> Test Check
+            </button>
+          </div>
+          <p class="card-desc">Emails will trigger at these hours if the goal remains incomplete.</p>
+          <div class="schedule-timeline">
+            <div class="timeline-item" id="time-9pm">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content">
+                <h4>9:00 PM</h4>
+                <p>Initial Activity Check & Email Alert</p>
+              </div>
+            </div>
+            <div class="timeline-item" id="time-10pm">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content">
+                <h4>10:00 PM</h4>
+                <p>Second Reminder Email</p>
+              </div>
+            </div>
+            <div class="timeline-item" id="time-11pm">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content">
+                <h4>11:00 PM</h4>
+                <p>Third Reminder Email</p>
+              </div>
+            </div>
+            <div class="timeline-item" id="time-12am">
+              <div class="timeline-marker"></div>
+              <div class="timeline-content">
+                <h4>12:00 AM</h4>
+                <p>Final Reminder Email</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Activity Heatmap -->
+        <div class="card heatmap-card">
+          <div class="card-header">
+            <h2>Activity Calendar</h2>
+            <div class="heatmap-legend">
+              <span>Less</span>
+              <span class="legend-box level-0"></span>
+              <span class="legend-box level-1"></span>
+              <span>More</span>
+            </div>
+          </div>
+          <div class="heatmap-wrapper">
+            <div id="heatmap-grid" class="heatmap-grid">
+              <!-- JS will populate the days -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast">
+    <i class="fa-solid fa-circle-check toast-icon"></i>
+    <span id="toast-message">Success!</span>
+  </div>
+
+  <!-- Custom JS -->
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+const https = require('https');
+const http = require('http');
+
+/**
+ * Make an HTTPS request and return parsed JSON
+ */
+function fetchJSON(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const protocol = url.startsWith('https') ? https : http;
+    const req = protocol.request(url, {
+      method: options.method || 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'SmartReminder/1.0',
+        ...options.headers
+      }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(new Error(`Failed to parse JSON from ${url}: ${data.substring(0, 200)}`));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.setTimeout(15000, () => {
+      req.destroy();
+      reject(new Error(`Request timeout for ${url}`));
+    });
+
+    if (options.body) {
+      req.write(JSON.stringify(options.body));
+    }
+    req.end();
+  });
+}
+
+/**
+ * Get today's start and end timestamps in IST
+ */
+function getTodayBoundsIST() {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istNow = new Date(now.getTime() + istOffset + now.getTimezoneOffset() * 60 * 1000);
+
+  // Start of today IST (00:00:00)
+  const startOfDay = new Date(istNow);
+  startOfDay.setHours(0, 0, 0, 0);
+  // Convert back to UTC timestamp
+  const startTimestamp = Math.floor((startOfDay.getTime() - istOffset - now.getTimezoneOffset() * 60 * 1000) / 1000);
+
+  // End of today IST (23:59:59)
+  const endOfDay = new Date(istNow);
+  endOfDay.setHours(23, 59, 59, 999);
+  const endTimestamp = Math.floor((endOfDay.getTime() - istOffset - now.getTimezoneOffset() * 60 * 1000) / 1000);
+
+  return { startTimestamp, endTimestamp };
+}
+
+/**
+ * Check LeetCode for today's accepted submissions using GraphQL API
+ * @param {string} username - LeetCode username
+ * @returns {Object} { solved: boolean, details: Object }
+ */
+async function checkLeetCode(username) {
+  if (!username) {
+    return { solved: false, details: { error: 'No LeetCode username configured' } };
+  }
+
+  try {
+    console.log(`[Checker] Checking LeetCode for user: ${username}`);
+
+    // Query 1: Get recent accepted submissions
+    const recentResult = await fetchJSON('https://leetcode.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Referer': 'https://leetcode.com'
+      },
+      body: {
+        query: `
+          query getRecentAcSubmissions($username: String!, $limit: Int) {
+            recentAcSubmissionList(username: $username, limit: $limit) {
+              id
+              title
+              titleSlug
+              timestamp
+            }
+          }
+        `,
+        variables: { username, limit: 20 }
+      }
+    });
+
+    if (recentResult.errors) {
+      console.error('[Checker] LeetCode GraphQL errors:', recentResult.errors);
+      return { solved: false, details: { error: recentResult.errors[0]?.message || 'GraphQL error' } };
+    }
+
+    const submissions = recentResult.data?.recentAcSubmissionList || [];
+    const { startTimestamp, endTimestamp } = getTodayBoundsIST();
+
+    // Filter for today's submissions (timestamps are in seconds)
+    const todaySubmissions = submissions.filter(sub => {
+      const ts = parseInt(sub.timestamp);
+      return ts >= startTimestamp && ts <= endTimestamp;
+    });
+
+    if (todaySubmissions.length > 0) {
+      console.log(`[Checker] ✅ LeetCode: Found ${todaySubmissions.length} accepted submissions today`);
+      return {
+        solved: true,
+        details: {
+          platform: 'leetcode',
+          count: todaySubmissions.length,
+          problems: todaySubmissions.map(s => ({
+            title: s.title,
+            slug: s.titleSlug,
+            timestamp: s.timestamp
+          }))
+        }
+      };
+    }
+
+    // Query 2: Also check submission calendar as backup
+    const calendarResult = await fetchJSON('https://leetcode.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Referer': 'https://leetcode.com'
+      },
+      body: {
+        query: `
+          query userProfileCalendar($username: String!, $year: Int) {
+            matchedUser(username: $username) {
+              userCalendar(year: $year) {
+                activeYears
+                streak
+                totalActiveDays
+                submissionCalendar
+              }
+            }
+          }
+        `,
+        variables: { username, year: new Date().getFullYear() }
+      }
+    });
+
+    const calendar = calendarResult.data?.matchedUser?.userCalendar;
+    if (calendar?.submissionCalendar) {
+      try {
+        const calMap = JSON.parse(calendar.submissionCalendar);
+        // Check if today's start-of-day timestamp exists in calendar
+        const todayKey = startTimestamp.toString();
+        if (calMap[todayKey] && calMap[todayKey] > 0) {
+          console.log(`[Checker] ✅ LeetCode calendar: Found activity today`);
+          return {
+            solved: true,
+            details: {
+              platform: 'leetcode',
+              count: calMap[todayKey],
+              source: 'calendar',
+              leetcodeStreak: calendar.streak
+            }
+          };
+        }
+      } catch (e) {
+        console.error('[Checker] Error parsing LeetCode calendar:', e.message);
+      }
+    }
+
+    console.log(`[Checker] ❌ LeetCode: No accepted submissions today`);
+    return {
+      solved: false,
+      details: {
+        platform: 'leetcode',
+        submissionsChecked: submissions.length,
+        leetcodeStreak: calendar?.streak || 0
+      }
+    };
+
+  } catch (err) {
+    console.error('[Checker] LeetCode check failed:', err.message);
+    return {
+      solved: false,
+      details: { error: `LeetCode API error: ${err.message}` }
+    };
+  }
+}
+
+/**
+ * Check LeetCode for today's activity
+ */
+async function checkAll() {
+  const store = require('./store');
+  const today = store.getToday();
+
+  // If already marked as solved today, no need to check API
+  if (today.activity?.solved) {
+    console.log(`[Checker] ✅ Already solved today (${today.activity.platform})`);
+    return {
+      solved: true,
+      platform: today.activity.platform,
+      details: today.activity,
+      alreadyRecorded: true
+    };
+  }
+
+  const leetcodeUsername = process.env.LEETCODE_USERNAME;
+  const leetcode = await checkLeetCode(leetcodeUsername);
+
+  if (leetcode.solved) {
+    const now = new Date().toISOString();
+    store.updateToday({
+      solved: true,
+      platform: 'leetcode',
+      solvedAt: now,
+      manualEntry: false
+    });
+    return { solved: true, platform: 'leetcode', details: leetcode.details };
+  }
+
+  return {
+    solved: false,
+    platform: null,
+    details: leetcode.details
+  };
+}
+
+module.exports = {
+  checkLeetCode,
+  checkAll
+};
+
