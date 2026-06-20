@@ -6,11 +6,17 @@ let transporter = null;
  * Initialize the email transporter
  */
 function initTransporter() {
+  const sendgridKey = process.env.SENDGRID_API_KEY;
+  if (sendgridKey && sendgridKey !== 'your-sendgrid-api-key') {
+    console.log('[Mailer] ✅ SendGrid API configured for outgoing mail (SMTP disabled)');
+    return null;
+  }
+
   const user = process.env.EMAIL_FROM;
   const pass = process.env.EMAIL_APP_PASSWORD;
 
   if (!user || !pass || user === 'your-email@gmail.com') {
-    console.warn('[Mailer] ⚠️  Email not configured. Set EMAIL_FROM and EMAIL_APP_PASSWORD in .env');
+    console.warn('[Mailer] ⚠️  Email not configured. Set EMAIL_FROM and EMAIL_APP_PASSWORD (or SENDGRID_API_KEY) in .env');
     return null;
   }
 
@@ -21,8 +27,78 @@ function initTransporter() {
     auth: { user, pass }
   });
 
-  console.log(`[Mailer] ✅ Email transporter initialized (${user})`);
+  console.log(`[Mailer] ✅ SMTP transporter initialized (${user})`);
   return transporter;
+}
+
+/**
+ * Unified helper to send email via SendGrid HTTP API or SMTP fallback
+ */
+async function sendEmail({ subject, html }) {
+  const sendgridKey = process.env.SENDGRID_API_KEY;
+  const fromEmail = process.env.EMAIL_FROM;
+  const toEmail = process.env.EMAIL_TO;
+
+  if (sendgridKey && sendgridKey !== 'your-sendgrid-api-key') {
+    console.log('[Mailer] Attempting email send via SendGrid HTTP API...');
+    try {
+      const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sendgridKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          personalizations: [{
+            to: [{ email: toEmail }]
+          }],
+          from: {
+            email: fromEmail,
+            name: '🔥 Smart Reminder'
+          },
+          subject: subject,
+          content: [{
+            type: 'text/html',
+            value: html
+          }]
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`SendGrid API error (${response.status}): ${errText}`);
+      }
+
+      console.log('[Mailer] ✅ Email sent successfully via SendGrid API');
+      return true;
+    } catch (err) {
+      console.error('[Mailer] ❌ SendGrid API failed:', err.message);
+      return false;
+    }
+  }
+
+  // Fallback to SMTP
+  if (!transporter) {
+    initTransporter();
+  }
+  if (!transporter) {
+    console.warn('[Mailer] ❌ Skipping email — no SMTP configuration found');
+    return false;
+  }
+
+  try {
+    const info = await transporter.sendMail({
+      from: `"🔥 Smart Reminder" <${fromEmail}>`,
+      to: toEmail,
+      subject,
+      html
+    });
+    console.log(`[Mailer] ✅ Email sent successfully via SMTP: ${info.messageId}`);
+    return true;
+  } catch (err) {
+    console.error('[Mailer] ❌ SMTP sending failed:', err.message);
+    return false;
+  }
 }
 
 /**
@@ -49,14 +125,6 @@ function getMotivationalQuote() {
  * @param {Object} data - { streak, reminderCount, time }
  */
 async function sendReminder(data) {
-  if (!transporter) {
-    initTransporter();
-  }
-  if (!transporter) {
-    console.log('[Mailer] Skipping email — not configured');
-    return false;
-  }
-
   const quote = getMotivationalQuote();
   const streakEmoji = data.streak > 0 ? '🔥' : '❄️';
   const urgency = data.reminderCount >= 3 ? '🚨 FINAL' : data.reminderCount >= 2 ? '⚠️' : '💡';
@@ -152,19 +220,8 @@ async function sendReminder(data) {
     </html>
   `;
 
-  try {
-    const info = await transporter.sendMail({
-      from: `"🔥 Smart Reminder" <${process.env.EMAIL_FROM}>`,
-      to: process.env.EMAIL_TO,
-      subject: `${urgency} You haven't coded today! (Streak: ${data.streak} days) — Reminder #${data.reminderCount}`,
-      html
-    });
-    console.log(`[Mailer] ✅ Reminder email sent: ${info.messageId}`);
-    return true;
-  } catch (err) {
-    console.error('[Mailer] ❌ Failed to send email:', err.message);
-    return false;
-  }
+  const subject = `${urgency} You haven't coded today! (Streak: ${data.streak} days) — Reminder #${data.reminderCount}`;
+  return await sendEmail({ subject, html });
 }
 
 /**
@@ -172,11 +229,6 @@ async function sendReminder(data) {
  * @param {Object} data - { streak, platform, problemTitle }
  */
 async function sendStreakUpdate(data) {
-  if (!transporter) {
-    initTransporter();
-  }
-  if (!transporter) return false;
-
   const html = `
     <!DOCTYPE html>
     <html>
@@ -241,19 +293,8 @@ async function sendStreakUpdate(data) {
     </html>
   `;
 
-  try {
-    const info = await transporter.sendMail({
-      from: `"🔥 Smart Reminder" <${process.env.EMAIL_FROM}>`,
-      to: process.env.EMAIL_TO,
-      subject: `🎉 Streak updated! ${data.streak} days and counting!`,
-      html
-    });
-    console.log(`[Mailer] ✅ Streak update email sent: ${info.messageId}`);
-    return true;
-  } catch (err) {
-    console.error('[Mailer] ❌ Failed to send streak email:', err.message);
-    return false;
-  }
+  const subject = `🎉 Streak updated! ${data.streak} days and counting!`;
+  return await sendEmail({ subject, html });
 }
 
 module.exports = {
