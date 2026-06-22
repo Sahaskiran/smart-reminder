@@ -1,0 +1,65 @@
+name: Check Activity & Deploy Dashboard
+on:
+  schedule:
+    - cron: '0 16,17,18,19 * * *' # Runs daily at 9:30 PM, 10:30 PM, 11:30 PM, and 12:30 AM IST (UTC +5:30)
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force send email status'
+        required: false
+        type: boolean
+        default: false
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+jobs:
+  check-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Install Dependencies
+        run: npm ci
+      - name: Run Activity Check
+        env:
+          LEETCODE_USERNAME: ${{ secrets.LEETCODE_USERNAME }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          TIMEZONE: Asia/Kolkata
+        run: |
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            node src/cron-run.js --force
+          else
+            node src/cron-run.js
+          fi
+      - name: Commit Database Changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-update streak history [skip ci]"
+          file_pattern: "data/history.json"
+      - name: Prepare Frontend Artifacts
+        run: |
+          mkdir -p public/data
+          cp data/history.json public/data/history.json
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './public'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,17 @@
+{
+  "streak": {
+    "current": 1,
+    "longest": 1,
+    "lastActiveDate": "2026-06-20"
+  },
+  "days": {
+    "2026-06-20": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-06-20T06:09:00.903Z",
+      "remindersSent": 5,
+      "manualEntry": false,
+      "congratsSent": true
+    }
+  }
+}

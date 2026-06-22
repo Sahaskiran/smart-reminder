@@ -14,6 +14,8 @@ const heatmapGridEl = document.getElementById('heatmap-grid');
 const fireIconEl = document.querySelector('.fire-icon');
 const streakMotivationalMsgEl = document.getElementById('streak-motivational-msg');
 
+window.todayGoalSolved = false;
+
 // Toast notification
 function showToast(message, type = 'success') {
   const toast = document.getElementById('toast');
@@ -32,6 +34,14 @@ function showToast(message, type = 'success') {
   setTimeout(() => {
     toast.classList.remove('show');
   }, 4000);
+}
+
+// Get today's date string in IST (YYYY-MM-DD)
+function getTodayIST() {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000; // IST = UTC + 5:30
+  const istDate = new Date(now.getTime() + istOffset + now.getTimezoneOffset() * 60 * 1000);
+  return istDate.toISOString().split('T')[0];
 }
 
 // Clock updates
@@ -80,153 +90,122 @@ function updateTimelineHighlights(currentHour, currentMinute) {
   });
 }
 
-// Fetch general status data
-async function fetchStatus() {
+// Fetch static history.json and render dashboard
+async function fetchAndRenderData() {
   try {
-    const res = await fetch('/api/status');
-    const result = await res.json();
-
-    if (result.success) {
-      const data = result.data;
-      window.todayGoalSolved = data.solved;
-
-      // Update Streaks
-      currentStreakEl.textContent = data.streak.current;
-      longestStreakEl.textContent = data.streak.longest;
-
-      // Motivational Message
-      if (data.streak.current > 0) {
-        fireIconEl.classList.add('active');
-        streakMotivationalMsgEl.textContent = `Keep it burning! You are on a ${data.streak.current}-day streak!`;
-      } else {
-        fireIconEl.classList.remove('active');
-        streakMotivationalMsgEl.textContent = 'Solve a problem to start your streak today!';
-      }
-
-      // Update Today's Goal Section
-      statusCircleEl.className = 'status-circle';
-      if (data.solved) {
-        statusCircleEl.classList.add('success');
-        statusIconEl.className = 'fa-solid fa-check';
-        statusTitleEl.textContent = 'Goal Completed!';
-        
-        let platformDisplay = data.platform.toUpperCase();
-        if (data.manualEntry) {
-          platformDisplay += ' (Logged Manually)';
-        }
-        statusDescEl.textContent = `Excellent! Verified today on ${platformDisplay} at ${new Date(data.solvedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}.`;
-      } else {
-        statusCircleEl.classList.add('pending');
-        statusIconEl.className = 'fa-solid fa-hourglass-half';
-        statusTitleEl.textContent = 'Awaiting Completion';
-        statusDescEl.textContent = `Reminders active. ${data.remindersSent} alerts sent so far today.`;
-      }
-
-      const now = new Date();
-      updateTimelineHighlights(now.getHours(), now.getMinutes());
+    // Read from static JSON file generated during check job
+    const res = await fetch('data/history.json');
+    if (!res.ok) {
+      throw new Error(`Failed to load data file: ${res.status}`);
     }
+    const data = await res.json();
+
+    // 1. Update Streaks
+    currentStreakEl.textContent = data.streak.current;
+    longestStreakEl.textContent = data.streak.longest;
+
+    // Motivational Message
+    if (data.streak.current > 0) {
+      fireIconEl.classList.add('active');
+      streakMotivationalMsgEl.textContent = `Keep it burning! You are on a ${data.streak.current}-day streak!`;
+    } else {
+      fireIconEl.classList.remove('active');
+      streakMotivationalMsgEl.textContent = 'Solve a problem to start your streak today!';
+    }
+
+    // 2. Update Today's Goal Section
+    const todayStr = getTodayIST();
+    const todayActivity = data.days[todayStr] || null;
+    window.todayGoalSolved = todayActivity?.solved || false;
+
+    statusCircleEl.className = 'status-circle';
+    if (window.todayGoalSolved) {
+      statusCircleEl.classList.add('success');
+      statusIconEl.className = 'fa-solid fa-check';
+      statusTitleEl.textContent = 'Goal Completed!';
+      statusDescEl.textContent = `Excellent! Verified today on LeetCode at ${new Date(todayActivity.solvedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}.`;
+    } else {
+      statusCircleEl.classList.add('pending');
+      statusIconEl.className = 'fa-solid fa-hourglass-half';
+      statusTitleEl.textContent = 'Awaiting Completion';
+      const remindersSent = todayActivity?.remindersSent || 0;
+      statusDescEl.textContent = `Reminders active. ${remindersSent} alerts sent so far today.`;
+    }
+
+    // 3. Render 90-day heatmap calendar
+    const numDays = 90;
+    const resultDays = [];
+    let totalSolved = 0;
+
+    for (let i = 0; i < numDays; i++) {
+      const date = new Date();
+      const istOffset = 5.5 * 60 * 60 * 1000;
+      const istDate = new Date(date.getTime() + istOffset + date.getTimezoneOffset() * 60 * 1000);
+      istDate.setDate(istDate.getDate() - i);
+      const dateStr = istDate.toISOString().split('T')[0];
+
+      const dayData = data.days[dateStr] || { solved: false, platform: null, remindersSent: 0 };
+      if (dayData.solved) totalSolved++;
+      
+      resultDays.push({
+        date: dateStr,
+        ...dayData
+      });
+    }
+
+    totalSolvedDaysEl.textContent = totalSolved;
+    heatmapGridEl.innerHTML = '';
+
+    // Render left-to-right (oldest first)
+    const renderDays = resultDays.reverse();
+    renderDays.forEach(day => {
+      const dayEl = document.createElement('div');
+      dayEl.className = 'heatmap-day';
+      
+      if (day.solved) {
+        dayEl.classList.add('level-1');
+        dayEl.setAttribute('data-platform', day.platform || 'leetcode');
+      } else {
+        dayEl.classList.add('level-0');
+      }
+
+      const dateStr = new Date(day.date).toLocaleDateString(undefined, {
+        weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
+      });
+
+      let statusText = 'No activity';
+      if (day.solved) {
+        statusText = `Solved on LeetCode`;
+        if (day.solvedAt) {
+          statusText += ` (${new Date(day.solvedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})})`;
+        }
+      }
+      dayEl.setAttribute('data-tooltip', `${dateStr}: ${statusText}`);
+      heatmapGridEl.appendChild(dayEl);
+    });
+
+    const now = new Date();
+    updateTimelineHighlights(now.getHours(), now.getMinutes());
+
   } catch (err) {
-    console.error('Error fetching status:', err);
-    showToast('Failed to connect to backend api', 'error');
+    console.error('Error fetching dashboard data:', err);
+    showToast('Failed to load history data', 'error');
   }
 }
 
-// Build 90-day heatmap grid
-async function fetchAndRenderHeatmap() {
-  try {
-    const res = await fetch('/api/history?days=90');
-    const result = await res.json();
-
-    if (result.success) {
-      const historyData = result.data;
-      totalSolvedDaysEl.textContent = historyData.totalSolved;
-
-      // Clean grid
-      heatmapGridEl.innerHTML = '';
-
-      // Populate grid (reversed so latest is at the end or correctly ordered left-to-right)
-      // We will render days from oldest to newest (historyData.days is returned latest first)
-      const days = [...historyData.days].reverse();
-
-      days.forEach(day => {
-        const dayEl = document.createElement('div');
-        dayEl.className = 'heatmap-day';
-        
-        // Add activity level
-        if (day.solved) {
-          dayEl.classList.add('level-1');
-          dayEl.setAttribute('data-platform', day.platform || 'manual');
-        } else {
-          dayEl.classList.add('level-0');
-        }
-
-        // Formats tooltip content
-        const dateStr = new Date(day.date).toLocaleDateString(undefined, {
-          weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
-        });
-
-        let statusText = 'No activity';
-        if (day.solved) {
-          statusText = `Solved on ${day.platform.toUpperCase()}`;
-          if (day.solvedAt) {
-            statusText += ` (${new Date(day.solvedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})})`;
-          }
-        }
-        dayEl.setAttribute('data-tooltip', `${dateStr}: ${statusText}`);
-
-        heatmapGridEl.appendChild(dayEl);
-      });
-    }
-  } catch (err) {
-    console.error('Error fetching heatmap history:', err);
-  }
+// Redirect helpers for manual actions
+function openGitHubActions() {
+  showToast('Opening GitHub Actions to run check...', 'success');
+  setTimeout(() => {
+    window.open('https://github.com/Sahaskiran/smart-reminder/actions', '_blank');
+  }, 1500);
 }
 
 // Manual Activity Check Event
-checkNowBtn.addEventListener('click', async () => {
-  checkNowBtn.disabled = true;
-  checkNowBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
-  
-  try {
-    const res = await fetch('/api/check-now', { method: 'POST' });
-    const result = await res.json();
-    
-    if (result.success) {
-      if (result.data.solved) {
-        showToast(`Activity detected on ${result.data.platform.toUpperCase()}! Streak saved.`);
-      } else {
-        showToast('No recent activity found. Make sure submissions are Accepted.', 'error');
-      }
-      await fetchStatus();
-      await fetchAndRenderHeatmap();
-    }
-  } catch (err) {
-    console.error(err);
-    showToast('Failed to trigger check.', 'error');
-  } finally {
-    checkNowBtn.disabled = false;
-    checkNowBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> Check Activity';
-  }
-});
+checkNowBtn.addEventListener('click', openGitHubActions);
 
 // Test Email Event
-testEmailBtn.addEventListener('click', async () => {
-  testEmailBtn.disabled = true;
-  testEmailBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-  
-  try {
-    const res = await fetch('/api/test-reminder', { method: 'POST' });
-    const result = await res.json();
-    if (result.success) {
-      showToast('Checked details. Check backend console for notification details.');
-    }
-  } catch (err) {
-    showToast('Failed to execute test check.', 'error');
-  } finally {
-    testEmailBtn.disabled = false;
-    testEmailBtn.innerHTML = '<i class="fa-solid fa-envelope"></i>';
-  }
-});
+testEmailBtn.addEventListener('click', openGitHubActions);
 
 // App Initialization
 document.addEventListener('DOMContentLoaded', () => {
@@ -235,9 +214,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(updateClock, 1000);
 
   // Fetch data
-  fetchStatus();
-  fetchAndRenderHeatmap();
+  fetchAndRenderData();
 
-  // Poll status every 60 seconds
-  setInterval(fetchStatus, 60000);
+  // Poll history every 60 seconds
+  setInterval(fetchAndRenderData, 60000);
 });
