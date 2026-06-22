@@ -12,6 +12,13 @@
       "remindersSent": 5,
       "manualEntry": false,
       "congratsSent": true
+    },
+    "2026-06-22": {
+      "solved": false,
+      "platform": null,
+      "solvedAt": null,
+      "remindersSent": 1,
+      "manualEntry": false
     }
   }
 }
