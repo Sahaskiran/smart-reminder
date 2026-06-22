@@ -193,19 +193,29 @@ async function fetchAndRenderData() {
   }
 }
 
-// Redirect helpers for manual actions
-function openGitHubActions() {
-  showToast('Opening GitHub Actions to run check...', 'success');
+// Manual Activity Check — refresh dashboard data from history.json
+checkNowBtn.addEventListener('click', async () => {
+  checkNowBtn.disabled = true;
+  checkNowBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Refreshing...';
+  
+  try {
+    await fetchAndRenderData();
+    showToast('Dashboard refreshed with latest data!', 'success');
+  } catch (err) {
+    showToast('Failed to refresh data.', 'error');
+  } finally {
+    checkNowBtn.disabled = false;
+    checkNowBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> Check Activity';
+  }
+});
+
+// Test Email — must be triggered via GitHub Actions (no backend on static site)
+testEmailBtn.addEventListener('click', () => {
+  showToast('Opening GitHub Actions — click "Run workflow" with Force enabled to send a test email.', 'success');
   setTimeout(() => {
-    window.open('https://github.com/Sahaskiran/smart-reminder/actions', '_blank');
-  }, 1500);
-}
-
-// Manual Activity Check Event
-checkNowBtn.addEventListener('click', openGitHubActions);
-
-// Test Email Event
-testEmailBtn.addEventListener('click', openGitHubActions);
+    window.open('https://github.com/Sahaskiran/smart-reminder/actions/workflows/check-and-deploy.yml', '_blank');
+  }, 2000);
+});
 
 // App Initialization
 document.addEventListener('DOMContentLoaded', () => {
