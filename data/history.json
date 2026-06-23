@@ -19,6 +19,13 @@
       "solvedAt": null,
       "remindersSent": 1,
       "manualEntry": false
+    },
+    "2026-06-23": {
+      "solved": false,
+      "platform": null,
+      "solvedAt": null,
+      "remindersSent": 1,
+      "manualEntry": false
     }
   }
 }
