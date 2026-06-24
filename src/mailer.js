@@ -24,7 +24,10 @@ function initTransporter() {
     host: 'smtp.gmail.com',
     port: 465,
     secure: true,
-    auth: { user, pass }
+    auth: { user, pass },
+    connectionTimeout: 5000, // 5 seconds
+    greetingTimeout: 5000,   // 5 seconds
+    socketTimeout: 10000     // 10 seconds
   });
 
   console.log(`[Mailer] ✅ SMTP transporter initialized (${user})`);
