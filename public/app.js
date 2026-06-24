@@ -1,4 +1,39 @@
-// DOM Elements
+// Initialize Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyCmLt52foqRYkxSXAiEZXhsVYy0d8kN9j0",
+  authDomain: "smart-reminder-36155.firebaseapp.com",
+  databaseURL: "https://smart-reminder-36155-default-rtdb.firebaseio.com",
+  projectId: "smart-reminder-36155",
+  storageBucket: "smart-reminder-36155.firebasestorage.app",
+  messagingSenderId: "123987610859",
+  appId: "1:123987610859:web:1748561329c77aec2e42ae",
+  measurementId: "G-L4QWC9Z07G"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+
+// Views
+const authView = document.getElementById('auth-view');
+const setupView = document.getElementById('setup-view');
+const dashboardView = document.getElementById('dashboard-view');
+
+// Auth Form Elements
+const authForm = document.getElementById('auth-form');
+const authEmailInput = document.getElementById('auth-email');
+const authPasswordInput = document.getElementById('auth-password');
+const authSubmitBtn = document.getElementById('auth-submit-btn');
+const authTitle = document.getElementById('auth-title');
+const authSubtitle = document.getElementById('auth-subtitle');
+const authToggleLink = document.getElementById('auth-toggle-link');
+const authToggleMsg = document.getElementById('auth-toggle-msg');
+
+// Setup Form Elements
+const setupForm = document.getElementById('setup-form');
+const leetcodeUsernameInput = document.getElementById('leetcode-username-input');
+const setupSubmitBtn = document.getElementById('setup-submit-btn');
+
+// Dashboard DOM Elements
 const currentStreakEl = document.getElementById('current-streak');
 const longestStreakEl = document.getElementById('longest-streak');
 const totalSolvedDaysEl = document.getElementById('total-solved-days');
@@ -7,14 +42,20 @@ const statusCircleEl = document.getElementById('status-circle');
 const statusIconEl = document.getElementById('status-icon');
 const statusTitleEl = document.getElementById('status-title');
 const statusDescEl = document.getElementById('status-desc');
-const statusCardEl = document.getElementById('status-card');
 const checkNowBtn = document.getElementById('check-now-btn');
 const testEmailBtn = document.getElementById('test-email-btn');
 const heatmapGridEl = document.getElementById('heatmap-grid');
 const fireIconEl = document.querySelector('.fire-icon');
 const streakMotivationalMsgEl = document.getElementById('streak-motivational-msg');
 
-window.todayGoalSolved = false;
+const userEmailDisplay = document.getElementById('user-email-display');
+const logoutBtn = document.getElementById('logout-btn');
+
+// App State
+let isSignUpMode = false;
+let userToken = null;
+let todayGoalSolved = false;
+let pollingInterval = null;
 
 // Toast notification
 function showToast(message, type = 'success') {
@@ -36,13 +77,109 @@ function showToast(message, type = 'success') {
   }, 4000);
 }
 
-// Get today's date string in IST (YYYY-MM-DD)
-function getTodayIST() {
-  const now = new Date();
-  const istOffset = 5.5 * 60 * 60 * 1000; // IST = UTC + 5:30
-  const istDate = new Date(now.getTime() + istOffset + now.getTimezoneOffset() * 60 * 1000);
-  return istDate.toISOString().split('T')[0];
+// Helper for making API calls with Authorization header
+async function apiCall(endpoint, method = 'GET', body = null) {
+  if (!userToken) {
+    throw new Error('Not authenticated');
+  }
+
+  const headers = {
+    'Authorization': `Bearer ${userToken}`,
+    'Content-Type': 'application/json'
+  };
+
+  const options = { method, headers };
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+
+  const res = await fetch(endpoint, options);
+  if (res.status === 401) {
+    auth.signOut();
+    throw new Error('Session expired');
+  }
+
+  const result = await res.json();
+  if (!res.ok) {
+    throw new Error(result.error || 'Request failed');
+  }
+  return result;
 }
+
+// Toggle Auth mode (Login vs Signup)
+authToggleLink.addEventListener('click', (e) => {
+  e.preventDefault();
+  isSignUpMode = !isSignUpMode;
+  if (isSignUpMode) {
+    authTitle.textContent = 'Create Account';
+    authSubtitle.textContent = 'Join the gang & build consistency';
+    authSubmitBtn.textContent = 'Sign Up';
+    authToggleMsg.innerHTML = 'Already have an account? <a href="#" id="auth-toggle-link">Sign In</a>';
+  } else {
+    authTitle.textContent = 'Welcome Gang';
+    authSubtitle.textContent = 'Login to check your coding streak';
+    authSubmitBtn.textContent = 'Sign In';
+    authToggleMsg.innerHTML = "Don't have an account? <a href="#" id="auth-toggle-link">Create Account</a>";
+  }
+  // Re-bind click listener for the toggled element
+  document.getElementById('auth-toggle-link').addEventListener('click', arguments.callee);
+});
+
+// Auth form submit
+authForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = authEmailInput.value.trim();
+  const password = authPasswordInput.value;
+
+  authSubmitBtn.disabled = true;
+  authSubmitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+
+  try {
+    if (isSignUpMode) {
+      await auth.createUserWithEmailAndPassword(email, password);
+      showToast('Account created successfully!', 'success');
+    } else {
+      await auth.signInWithEmailAndPassword(email, password);
+      showToast('Logged in successfully!', 'success');
+    }
+  } catch (err) {
+    showToast(err.message, 'error');
+    authSubmitBtn.disabled = false;
+    authSubmitBtn.textContent = isSignUpMode ? 'Sign Up' : 'Sign In';
+  }
+});
+
+// LeetCode setup form submit
+setupForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = leetcodeUsernameInput.value.trim();
+
+  setupSubmitBtn.disabled = true;
+  setupSubmitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
+
+  try {
+    const res = await apiCall('/api/user/verify-leetcode', 'POST', { username });
+    showToast(res.message, 'success');
+    
+    // Switch to Dashboard
+    setupView.classList.add('hidden');
+    dashboardView.classList.remove('hidden');
+    
+    // Load dashboard data
+    await loadDashboard();
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    setupSubmitBtn.disabled = false;
+    setupSubmitBtn.textContent = 'Verify & Save Profile';
+  }
+});
+
+// Logout click
+logoutBtn.addEventListener('click', () => {
+  auth.signOut();
+  showToast('Logged out successfully!', 'success');
+});
 
 // Clock updates
 function updateClock() {
@@ -53,7 +190,7 @@ function updateClock() {
   const ampm = hours >= 12 ? 'PM' : 'AM';
 
   hours = hours % 12;
-  hours = hours ? hours : 12; // 0 should be 12
+  hours = hours ? hours : 12;
   minutes = minutes < 10 ? '0' + minutes : minutes;
   seconds = seconds < 10 ? '0' + seconds : seconds;
 
@@ -76,8 +213,7 @@ function updateTimelineHighlights(currentHour, currentMinute) {
 
     el.classList.remove('active', 'passed', 'complete');
 
-    // If goal is solved, make everything status complete
-    if (window.todayGoalSolved) {
+    if (todayGoalSolved) {
       el.classList.add('complete');
       return;
     }
@@ -90,74 +226,49 @@ function updateTimelineHighlights(currentHour, currentMinute) {
   });
 }
 
-// Fetch static history.json and render dashboard
-async function fetchAndRenderData() {
+// Load Dashboard Data
+async function loadDashboard() {
   try {
-    // Read from static JSON file generated during check job
-    const res = await fetch('data/history.json');
-    if (!res.ok) {
-      throw new Error(`Failed to load data file: ${res.status}`);
-    }
-    const data = await res.json();
+    // 1. Get user status
+    const statusRes = await apiCall('/api/user/status');
+    const status = statusRes.data;
 
-    // 1. Update Streaks
-    currentStreakEl.textContent = data.streak.current;
-    longestStreakEl.textContent = data.streak.longest;
+    currentStreakEl.textContent = status.streak.current;
+    longestStreakEl.textContent = status.streak.longest;
 
     // Motivational Message
-    if (data.streak.current > 0) {
+    if (status.streak.current > 0) {
       fireIconEl.classList.add('active');
-      streakMotivationalMsgEl.textContent = `Keep it burning! You are on a ${data.streak.current}-day streak!`;
+      streakMotivationalMsgEl.textContent = `Keep it burning! You are on a ${status.streak.current}-day streak!`;
     } else {
       fireIconEl.classList.remove('active');
       streakMotivationalMsgEl.textContent = 'Solve a problem to start your streak today!';
     }
 
-    // 2. Update Today's Goal Section
-    const todayStr = getTodayIST();
-    const todayActivity = data.days[todayStr] || null;
-    window.todayGoalSolved = todayActivity?.solved || false;
-
+    // 2. Goal status card updates
+    todayGoalSolved = status.solved;
     statusCircleEl.className = 'status-circle';
-    if (window.todayGoalSolved) {
+    if (todayGoalSolved) {
       statusCircleEl.classList.add('success');
       statusIconEl.className = 'fa-solid fa-check';
       statusTitleEl.textContent = 'Goal Completed!';
-      statusDescEl.textContent = `Excellent! Verified today on LeetCode at ${new Date(todayActivity.solvedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}.`;
+      statusDescEl.textContent = `Excellent! Verified today on LeetCode at ${new Date(status.solvedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}.`;
     } else {
       statusCircleEl.classList.add('pending');
       statusIconEl.className = 'fa-solid fa-hourglass-half';
       statusTitleEl.textContent = 'Awaiting Completion';
-      const remindersSent = todayActivity?.remindersSent || 0;
-      statusDescEl.textContent = `Reminders active. ${remindersSent} alerts sent so far today.`;
+      statusDescEl.textContent = `Reminders active. ${status.remindersSent} alerts sent so far today.`;
     }
 
-    // 3. Render 90-day heatmap calendar
-    const numDays = 90;
-    const resultDays = [];
-    let totalSolved = 0;
+    // 3. Get history for heatmap
+    const historyRes = await apiCall('/api/user/history');
+    const history = historyRes.data;
 
-    for (let i = 0; i < numDays; i++) {
-      const date = new Date();
-      const istOffset = 5.5 * 60 * 60 * 1000;
-      const istDate = new Date(date.getTime() + istOffset + date.getTimezoneOffset() * 60 * 1000);
-      istDate.setDate(istDate.getDate() - i);
-      const dateStr = istDate.toISOString().split('T')[0];
-
-      const dayData = data.days[dateStr] || { solved: false, platform: null, remindersSent: 0 };
-      if (dayData.solved) totalSolved++;
-      
-      resultDays.push({
-        date: dateStr,
-        ...dayData
-      });
-    }
-
-    totalSolvedDaysEl.textContent = totalSolved;
+    totalSolvedDaysEl.textContent = history.totalSolved;
     heatmapGridEl.innerHTML = '';
 
     // Render left-to-right (oldest first)
-    const renderDays = resultDays.reverse();
+    const renderDays = history.days.reverse();
     renderDays.forEach(day => {
       const dayEl = document.createElement('div');
       dayEl.className = 'heatmap-day';
@@ -189,146 +300,101 @@ async function fetchAndRenderData() {
 
   } catch (err) {
     console.error('Error fetching dashboard data:', err);
-    showToast('Failed to load history data', 'error');
+    showToast('Failed to load dashboard statistics.', 'error');
   }
 }
 
-// Detect if running locally (has backend) or on GitHub Pages (static only)
-const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-
-// GitHub Actions workflow trigger for static deployment
-const GITHUB_REPO = 'Sahaskiran/smart-reminder';
-const WORKFLOW_FILE = 'check-and-deploy.yml';
-
-function getGitHubToken() {
-  let token = localStorage.getItem('github_pat');
-  if (!token) {
-    token = prompt(
-      '🔑 Enter your GitHub Personal Access Token (PAT)\n\n' +
-      'This is needed to trigger email checks from the dashboard.\n' +
-      'Create one at: github.com → Settings → Developer Settings → Personal Access Tokens → Fine-grained\n' +
-      'Give it "Actions: Read & Write" permission for the smart-reminder repo.\n\n' +
-      'It will be saved in your browser for future use.'
-    );
-    if (token) {
-      localStorage.setItem('github_pat', token.trim());
-    }
-  }
-  return token;
-}
-
-async function triggerGitHubWorkflow(force = false) {
-  const token = getGitHubToken();
-  if (!token) {
-    showToast('GitHub token is required to trigger email checks.', 'error');
-    return false;
-  }
-
-  try {
-    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        ref: 'main',
-        inputs: { force: force.toString() }
-      })
-    });
-
-    if (res.status === 204) {
-      return true;
-    } else if (res.status === 401 || res.status === 403) {
-      localStorage.removeItem('github_pat');
-      showToast('Invalid token — please try again with a valid PAT.', 'error');
-      return false;
-    } else {
-      const data = await res.json().catch(() => ({}));
-      showToast(`Failed: ${data.message || res.statusText}`, 'error');
-      return false;
-    }
-  } catch (err) {
-    showToast('Network error triggering workflow.', 'error');
-    return false;
-  }
-}
-
-// Manual Activity Check
+// Manual check activity button click
 checkNowBtn.addEventListener('click', async () => {
   checkNowBtn.disabled = true;
   checkNowBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
 
   try {
-    if (isLocal) {
-      // On localhost — call the backend API directly
-      const res = await fetch('/api/check-now', { method: 'POST' });
-      const result = await res.json();
-      if (result.success) {
-        if (result.data.solved) {
-          showToast(`Activity detected on ${result.data.platform.toUpperCase()}! Streak saved.`);
-        } else {
-          showToast('No recent activity found.', 'error');
-        }
+    const res = await apiCall('/api/user/check-now', 'POST');
+    if (res.success) {
+      if (res.data.solved) {
+        showToast(`Activity detected on ${res.data.platform.toUpperCase()}! Streak saved.`);
+      } else {
+        showToast('No recent activity found today.', 'error');
       }
-    } else {
-      // On GitHub Pages — trigger the GitHub Actions workflow to check activity
-      showToast('Triggering activity check via GitHub Actions...', 'success');
-      const triggered = await triggerGitHubWorkflow(false);
-      if (triggered) {
-        showToast('✅ Workflow triggered! The dashboard will update in ~2 minutes.', 'success');
-      }
+      await loadDashboard();
     }
-    await fetchAndRenderData();
   } catch (err) {
-    showToast('Failed to check activity.', 'error');
+    showToast('Failed to verify activity: ' + err.message, 'error');
   } finally {
     checkNowBtn.disabled = false;
     checkNowBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> Check Activity';
   }
 });
 
-// Test Email
+// Test Email button click
 testEmailBtn.addEventListener('click', async () => {
   testEmailBtn.disabled = true;
   testEmailBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
   try {
-    if (isLocal) {
-      // On localhost — call the backend API directly
-      const res = await fetch('/api/test-reminder', { method: 'POST' });
-      const result = await res.json();
-      if (result.success) {
-        showToast('✅ Test email sent! Check your inbox.', 'success');
-      } else {
-        showToast('Failed to send email: ' + (result.error || 'Unknown error'), 'error');
-      }
-    } else {
-      // On GitHub Pages — trigger the GitHub Actions workflow with force=true
-      showToast('Triggering email check via GitHub Actions...', 'success');
-      const triggered = await triggerGitHubWorkflow(true);
-      if (triggered) {
-        showToast('✅ Workflow triggered! Email will arrive in ~2 minutes.', 'success');
-      }
+    const res = await apiCall('/api/user/test-reminder', 'POST');
+    if (res.success) {
+      showToast('✅ Test email sent! Check your inbox.', 'success');
+      await loadDashboard();
     }
   } catch (err) {
-    showToast('Failed to send test email.', 'error');
+    showToast('Failed to send test email: ' + err.message, 'error');
   } finally {
     testEmailBtn.disabled = false;
     testEmailBtn.innerHTML = '<i class="fa-solid fa-envelope"></i>';
   }
 });
 
-// App Initialization
+// Firebase Auth Observer
+auth.onAuthStateChanged(async (user) => {
+  if (user) {
+    userEmailDisplay.textContent = user.email;
+    
+    try {
+      userToken = await user.getIdToken();
+      
+      // Get user profile configuration status
+      const statusRes = await apiCall('/api/user/status');
+      
+      authView.classList.add('hidden');
+      
+      if (statusRes.data.needSetup) {
+        // Setup View (need leetcode username)
+        setupView.classList.remove('hidden');
+        dashboardView.classList.add('hidden');
+      } else {
+        // Dashboard View
+        setupView.classList.add('hidden');
+        dashboardView.classList.remove('hidden');
+        await loadDashboard();
+        
+        // Start polling every 60 seconds
+        if (pollingInterval) clearInterval(pollingInterval);
+        pollingInterval = setInterval(loadDashboard, 60000);
+      }
+    } catch (err) {
+      showToast('Authentication failed: ' + err.message, 'error');
+      auth.signOut();
+    }
+  } else {
+    // Logged out state
+    userToken = null;
+    userEmailDisplay.textContent = '';
+    if (pollingInterval) clearInterval(pollingInterval);
+    
+    // Clear forms
+    authForm.reset();
+    setupForm.reset();
+    
+    authView.classList.remove('hidden');
+    setupView.classList.add('hidden');
+    dashboardView.classList.add('hidden');
+  }
+});
+
+// Init clock
 document.addEventListener('DOMContentLoaded', () => {
-  // Start clock
   updateClock();
   setInterval(updateClock, 1000);
-
-  // Fetch data
-  fetchAndRenderData();
-
-  // Poll history every 60 seconds
-  setInterval(fetchAndRenderData, 60000);
 });

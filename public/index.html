@@ -15,7 +15,69 @@
 </head>
 <body>
   <div class="glass-bg"></div>
-  <div class="dashboard-container">
+
+  <!-- Firebase Client SDK (Compat library) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+  <!-- ==========================================
+       Auth View (Login / Signup)
+       ========================================== -->
+  <div class="auth-container" id="auth-view">
+    <div class="card auth-card">
+      <div class="auth-header">
+        <i class="fa-solid fa-fire-flame-curved logo-icon" style="font-size: 36px; color: #ff6b35; margin-bottom: 12px; display: inline-block;"></i>
+        <h1 id="auth-title">Welcome Gang</h1>
+        <p id="auth-subtitle">Login to check your coding streak</p>
+      </div>
+
+      <form class="auth-form" id="auth-form">
+        <div class="form-group">
+          <label for="auth-email">EMAIL ADDRESS</label>
+          <input type="email" id="auth-email" class="form-control" placeholder="enter email" required>
+        </div>
+        <div class="form-group">
+          <label for="auth-password">PASSWORD</label>
+          <input type="password" id="auth-password" class="form-control" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="auth-submit-btn">
+          Sign In
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        <p id="auth-toggle-msg">Don't have an account? <a href="#" id="auth-toggle-link">Create Account</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       Setup View (LeetCode Username Setup)
+       ========================================== -->
+  <div class="setup-container hidden" id="setup-view">
+    <div class="card setup-card">
+      <div class="setup-header">
+        <i class="fa-solid fa-code logo-icon" style="font-size: 36px; color: #ffa116; margin-bottom: 12px; display: inline-block;"></i>
+        <h1>Bind LeetCode Profile</h1>
+        <p>Verify your profile to begin tracking</p>
+      </div>
+
+      <form class="setup-form" id="setup-form">
+        <div class="form-group">
+          <label for="leetcode-username-input">LEETCODE USERNAME</label>
+          <input type="text" id="leetcode-username-input" class="form-control" placeholder="e.g. sahaskiran80" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="setup-submit-btn">
+          Verify & Save Profile
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       Dashboard View (Streak Tracker)
+       ========================================== -->
+  <div class="dashboard-container hidden" id="dashboard-view">
     <!-- Header -->
     <header class="header">
       <div class="brand">
@@ -27,10 +89,12 @@
           <p>Daily Coding Goal Tracker</p>
         </div>
       </div>
-      <div class="status-badge-container">
-        <span id="current-time-badge" class="time-badge">
-          <i class="fa-regular fa-clock"></i> <span id="clock-display">00:00:00 PM</span>
-        </span>
+      
+      <div class="user-menu" id="user-menu-container">
+        <span class="user-email-display" id="user-email-display">gang_member@gmail.com</span>
+        <button class="btn btn-logout" id="logout-btn">
+          <i class="fa-solid fa-sign-out"></i> Logout
+        </button>
       </div>
     </header>
 

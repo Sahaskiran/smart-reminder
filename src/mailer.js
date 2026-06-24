@@ -34,10 +34,10 @@ function initTransporter() {
 /**
  * Unified helper to send email via SendGrid HTTP API or SMTP fallback
  */
-async function sendEmail({ subject, html }) {
+async function sendEmail({ to, subject, html }) {
   const sendgridKey = process.env.SENDGRID_API_KEY;
   const fromEmail = process.env.EMAIL_FROM;
-  const toEmail = process.env.EMAIL_TO;
+  const toEmail = to || process.env.EMAIL_TO;
 
   if (sendgridKey && sendgridKey !== 'your-sendgrid-api-key') {
     console.log('[Mailer] Attempting email send via SendGrid HTTP API...');
@@ -124,7 +124,7 @@ function getMotivationalQuote() {
  * Send a reminder email when no activity is detected
  * @param {Object} data - { streak, reminderCount, time }
  */
-async function sendReminder(data) {
+async function sendReminder(toEmail, data) {
   const quote = getMotivationalQuote();
   const streakEmoji = data.streak > 0 ? '🔥' : '❄️';
   const urgency = data.reminderCount >= 3 ? '🚨 FINAL' : data.reminderCount >= 2 ? '⚠️' : '💡';
@@ -221,14 +221,14 @@ async function sendReminder(data) {
   `;
 
   const subject = `${urgency} You haven't coded today! (Streak: ${data.streak} days) — Reminder #${data.reminderCount}`;
-  return await sendEmail({ subject, html });
+  return await sendEmail({ to: toEmail, subject, html });
 }
 
 /**
  * Send a congratulatory email when activity is detected after reminders
  * @param {Object} data - { streak, platform, problemTitle }
  */
-async function sendStreakUpdate(data) {
+async function sendStreakUpdate(toEmail, data) {
   const html = `
     <!DOCTYPE html>
     <html>
@@ -294,7 +294,7 @@ async function sendStreakUpdate(data) {
   `;
 
   const subject = `🎉 Streak updated! ${data.streak} days and counting!`;
-  return await sendEmail({ subject, html });
+  return await sendEmail({ to: toEmail, subject, html });
 }
 
 module.exports = {

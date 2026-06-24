@@ -1,73 +1,14 @@
-const fs = require('fs');
-const path = require('path');
+const { db } = require('./firebase');
 
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
-
-/**
- * Default data structure for history.json
- */
-function getDefaultData() {
-  return {
-    streak: {
-      current: 0,
-      longest: 0,
-      lastActiveDate: null
-    },
-    days: {}
-  };
-}
-
-/**
- * Ensure the data directory and history file exist
- */
-function ensureDataFile() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(HISTORY_FILE)) {
-    fs.writeFileSync(HISTORY_FILE, JSON.stringify(getDefaultData(), null, 2));
-  }
-}
-
-/**
- * Read the full history data
- */
-function readData() {
-  ensureDataFile();
-  try {
-    const raw = fs.readFileSync(HISTORY_FILE, 'utf-8');
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error('Error reading history file, resetting:', err.message);
-    const data = getDefaultData();
-    writeData(data);
-    return data;
-  }
-}
-
-/**
- * Write the full history data
- */
-function writeData(data) {
-  ensureDataFile();
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(data, null, 2));
-}
-
-/**
- * Get today's date string in IST (YYYY-MM-DD)
- */
+// Helper to get today's date string in IST (YYYY-MM-DD)
 function getTodayIST() {
   const now = new Date();
-  // Convert to IST
   const istOffset = 5.5 * 60 * 60 * 1000; // IST = UTC + 5:30
   const istDate = new Date(now.getTime() + istOffset + now.getTimezoneOffset() * 60 * 1000);
   return istDate.toISOString().split('T')[0];
 }
 
-/**
- * Get yesterday's date string in IST (YYYY-MM-DD)
- */
+// Helper to get yesterday's date string in IST (YYYY-MM-DD)
 function getYesterdayIST() {
   const now = new Date();
   const istOffset = 5.5 * 60 * 60 * 1000;
@@ -77,92 +18,142 @@ function getYesterdayIST() {
 }
 
 /**
- * Get today's activity record
+ * Get a user's profile from Firestore
  */
-function getToday() {
-  const data = readData();
+async function getUserProfile(userId) {
+  const userDoc = await db.collection('users').doc(userId).get();
+  if (!userDoc.exists) return null;
+  return userDoc.data();
+}
+
+/**
+ * Update a user's profile fields
+ */
+async function updateUserProfile(userId, update) {
+  await db.collection('users').doc(userId).set(update, { merge: true });
+}
+
+/**
+ * Get today's activity record for a specific user
+ */
+async function getToday(userId) {
   const today = getTodayIST();
+  const docId = `${userId}_${today}`;
+  const logDoc = await db.collection('activity_logs').doc(docId).get();
+  const userProfile = await getUserProfile(userId);
+
   return {
     date: today,
-    activity: data.days[today] || null,
-    streak: data.streak
+    activity: logDoc.exists ? logDoc.data() : null,
+    streak: userProfile ? (userProfile.streak || { current: 0, longest: 0, lastActiveDate: null }) : { current: 0, longest: 0, lastActiveDate: null }
   };
 }
 
 /**
- * Update today's activity
- * @param {Object} update - { solved, platform, solvedAt, manualEntry }
+ * Update today's activity for a specific user, recalculating streaks
  */
-function updateToday(update) {
-  const data = readData();
+async function updateToday(userId, update) {
   const today = getTodayIST();
-
-  // Merge with existing data for today
-  const existing = data.days[today] || {
+  const docId = `${userId}_${today}`;
+  
+  const logRef = db.collection('activity_logs').doc(docId);
+  const logDoc = await logRef.get();
+  
+  const existing = logDoc.exists ? logDoc.data() : {
     solved: false,
     platform: null,
     solvedAt: null,
     remindersSent: 0,
+    congratsSent: false,
     manualEntry: false
   };
 
-  data.days[today] = {
+  const newActivity = {
+    userId,
+    date: today,
     ...existing,
     ...update
   };
 
+  await logRef.set(newActivity);
+
   // Update streak if solved
   if (update.solved) {
-    const yesterday = getYesterdayIST();
-    const wasActiveYesterday = data.days[yesterday]?.solved === true;
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+    const userData = userDoc.data() || {};
+    const streak = userData.streak || { current: 0, longest: 0, lastActiveDate: null };
 
-    if (data.streak.lastActiveDate === today) {
-      // Already updated streak today, no change
-    } else if (data.streak.lastActiveDate === yesterday || wasActiveYesterday) {
-      // Continue streak
-      data.streak.current += 1;
+    const yesterday = getYesterdayIST();
+    // Check if solved yesterday
+    const yesterdayDocId = `${userId}_${yesterday}`;
+    const yesterdayLogDoc = await db.collection('activity_logs').doc(yesterdayDocId).get();
+    const wasActiveYesterday = yesterdayLogDoc.exists && yesterdayLogDoc.data().solved === true;
+
+    if (streak.lastActiveDate === today) {
+      // Streak already updated today
+    } else if (streak.lastActiveDate === yesterday || wasActiveYesterday) {
+      streak.current += 1;
     } else {
-      // Start new streak
-      data.streak.current = 1;
+      streak.current = 1;
     }
 
-    data.streak.lastActiveDate = today;
-    data.streak.longest = Math.max(data.streak.longest, data.streak.current);
-  }
+    streak.lastActiveDate = today;
+    streak.longest = Math.max(streak.longest, streak.current);
 
-  writeData(data);
-  return data;
+    await userRef.set({ streak }, { merge: true });
+  }
 }
 
 /**
- * Increment the reminder count for today
+ * Increment the reminder count for a specific user today
  */
-function incrementReminders() {
-  const data = readData();
+async function incrementReminders(userId) {
   const today = getTodayIST();
+  const docId = `${userId}_${today}`;
+  const logRef = db.collection('activity_logs').doc(docId);
+  
+  await db.runTransaction(async (transaction) => {
+    const doc = await transaction.get(logRef);
+    if (!doc.exists) {
+      transaction.set(logRef, {
+        userId,
+        date: today,
+        solved: false,
+        platform: null,
+        solvedAt: null,
+        remindersSent: 1,
+        congratsSent: false,
+        manualEntry: false
+      });
+    } else {
+      const currentReminders = doc.data().remindersSent || 0;
+      transaction.update(logRef, { remindersSent: currentReminders + 1 });
+    }
+  });
 
-  if (!data.days[today]) {
-    data.days[today] = {
-      solved: false,
-      platform: null,
-      solvedAt: null,
-      remindersSent: 0,
-      manualEntry: false
-    };
-  }
-
-  data.days[today].remindersSent = (data.days[today].remindersSent || 0) + 1;
-  writeData(data);
-  return data.days[today].remindersSent;
+  const finalDoc = await logRef.get();
+  return finalDoc.data().remindersSent;
 }
 
 /**
- * Get history for the last N days
- * @param {number} numDays - Number of days to look back
+ * Get history for the last N days for a specific user
  */
-function getHistory(numDays = 90) {
-  const data = readData();
+async function getHistory(userId, numDays = 90) {
+  const userProfile = await getUserProfile(userId);
   const result = [];
+  
+  const logsSnapshot = await db.collection('activity_logs')
+    .where('userId', '==', userId)
+    .orderBy('date', 'desc')
+    .limit(numDays)
+    .get();
+
+  const logsMap = {};
+  logsSnapshot.forEach(doc => {
+    const data = doc.data();
+    logsMap[data.date] = data;
+  });
 
   for (let i = 0; i < numDays; i++) {
     const date = new Date();
@@ -171,25 +162,33 @@ function getHistory(numDays = 90) {
     istDate.setDate(istDate.getDate() - i);
     const dateStr = istDate.toISOString().split('T')[0];
 
+    const dayData = logsMap[dateStr] || { solved: false, platform: null, remindersSent: 0 };
     result.push({
       date: dateStr,
-      ...(data.days[dateStr] || { solved: false, platform: null, remindersSent: 0 })
+      solved: dayData.solved,
+      platform: dayData.platform,
+      solvedAt: dayData.solvedAt,
+      remindersSent: dayData.remindersSent
     });
   }
 
+  const streak = userProfile ? (userProfile.streak || { current: 0, longest: 0, lastActiveDate: null }) : { current: 0, longest: 0, lastActiveDate: null };
+  const totalSolved = Object.values(logsMap).filter(d => d.solved).length;
+
   return {
     days: result,
-    streak: data.streak,
-    totalSolved: Object.values(data.days).filter(d => d.solved).length
+    streak,
+    totalSolved
   };
 }
 
 module.exports = {
+  getUserProfile,
+  updateUserProfile,
   getToday,
   updateToday,
   incrementReminders,
   getHistory,
   getTodayIST,
-  readData,
-  writeData
+  getYesterdayIST
 };

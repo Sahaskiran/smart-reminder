@@ -193,15 +193,15 @@ async function checkLeetCode(username) {
 }
 
 /**
- * Check LeetCode for today's activity
+ * Check LeetCode for today's activity for a specific user
  */
-async function checkAll() {
+async function checkAll(userId) {
   const store = require('./store');
-  const today = store.getToday();
+  const today = await store.getToday(userId);
 
   // If already marked as solved today, no need to check API
   if (today.activity?.solved) {
-    console.log(`[Checker] ✅ Already solved today (${today.activity.platform})`);
+    console.log(`[Checker] ✅ User ${userId} already solved today (${today.activity.platform})`);
     return {
       solved: true,
       platform: today.activity.platform,
@@ -210,12 +210,18 @@ async function checkAll() {
     };
   }
 
-  const leetcodeUsername = process.env.LEETCODE_USERNAME;
+  const userProfile = await store.getUserProfile(userId);
+  const leetcodeUsername = userProfile?.leetcodeUsername;
+
+  if (!leetcodeUsername) {
+    return { solved: false, details: { error: 'No LeetCode username configured' } };
+  }
+
   const leetcode = await checkLeetCode(leetcodeUsername);
 
   if (leetcode.solved) {
     const now = new Date().toISOString();
-    store.updateToday({
+    await store.updateToday(userId, {
       solved: true,
       platform: 'leetcode',
       solvedAt: now,
@@ -232,18 +238,21 @@ async function checkAll() {
 }
 
 /**
- * Sync historical LeetCode activity from the submission calendar
- * Backfills all past active days into history.json and recalculates streak
+ * Sync historical LeetCode activity from the submission calendar for a specific user
+ * Backfills all past active days into activity_logs and recalculates streak in users collection
  */
-async function syncHistory(username) {
+async function syncHistory(userId) {
+  const store = require('./store');
+  const { db } = require('./firebase');
+  const userProfile = await store.getUserProfile(userId);
+  const username = userProfile?.leetcodeUsername;
+
   if (!username) {
     return { success: false, error: 'No LeetCode username configured' };
   }
 
-  const store = require('./store');
-
   try {
-    console.log(`[Sync] Fetching full submission calendar for: ${username}`);
+    console.log(`[Sync] Fetching full submission calendar for user: ${username}`);
 
     const calendarResult = await fetchJSON('https://leetcode.com/graphql', {
       method: 'POST',
@@ -274,57 +283,79 @@ async function syncHistory(username) {
     }
 
     const calMap = JSON.parse(calendar.submissionCalendar);
-    const data = store.readData();
     let daysAdded = 0;
 
-    // Convert each Unix timestamp key to IST date and add to history
+    // Fetch existing logs from Firestore for this user
+    const existingLogsSnapshot = await db.collection('activity_logs')
+      .where('userId', '==', userId)
+      .get();
+    
+    const existingDates = new Set();
+    existingLogsSnapshot.forEach(doc => {
+      existingDates.add(doc.data().date);
+    });
+
+    // We'll write new dates using a batch write
+    let batch = db.batch();
+    let batchCount = 0;
+    const allActiveDates = [];
+
     for (const [timestamp, count] of Object.entries(calMap)) {
       if (count <= 0) continue;
 
-      // Convert UTC timestamp to IST date string
       const utcMs = parseInt(timestamp) * 1000;
       const istOffset = 5.5 * 60 * 60 * 1000;
       const istDate = new Date(utcMs + istOffset);
       const dateStr = istDate.toISOString().split('T')[0];
+      allActiveDates.push(dateStr);
 
-      // Only backfill if we don't already have a "solved" record for this day
-      if (!data.days[dateStr] || !data.days[dateStr].solved) {
-        data.days[dateStr] = {
+      if (!existingDates.has(dateStr)) {
+        const docId = `${userId}_${dateStr}`;
+        const logRef = db.collection('activity_logs').doc(docId);
+        
+        batch.set(logRef, {
+          userId,
+          date: dateStr,
           solved: true,
           platform: 'leetcode',
           solvedAt: new Date(utcMs).toISOString(),
           remindersSent: 0,
+          congratsSent: true,
           manualEntry: false,
           source: 'calendar-sync'
-        };
+        });
+
         daysAdded++;
+        batchCount++;
+
+        if (batchCount >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          batchCount = 0;
+        }
       }
     }
 
-    // Recalculate streak from scratch using all days
-    const allDates = Object.keys(data.days)
-      .filter(d => data.days[d].solved)
-      .sort()
-      .reverse(); // Most recent first
+    if (batchCount > 0) {
+      await batch.commit();
+    }
 
-    if (allDates.length > 0) {
+    // Recalculate streak from scratch
+    const sorted = allActiveDates.sort();
+    let longestStreak = 0;
+    let currentStreak = 0;
+
+    if (sorted.length > 0) {
       const todayIST = store.getTodayIST();
-      const yesterday = new Date();
-      const istOffset = 5.5 * 60 * 60 * 1000;
-      const istNow = new Date(yesterday.getTime() + istOffset + yesterday.getTimezoneOffset() * 60 * 1000);
-      istNow.setDate(istNow.getDate() - 1);
-      const yesterdayStr = istNow.toISOString().split('T')[0];
+      const yesterdayIST = store.getYesterdayIST();
 
-      // Helper: difference in days between two YYYY-MM-DD strings
       function dayDiff(a, b) {
         const msA = Date.UTC(+a.slice(0,4), +a.slice(5,7)-1, +a.slice(8,10));
         const msB = Date.UTC(+b.slice(0,4), +b.slice(5,7)-1, +b.slice(8,10));
         return Math.round((msA - msB) / (24 * 60 * 60 * 1000));
       }
 
-      // Sort oldest first for scanning all runs
-      const sorted = [...allDates].sort();
-      let longestStreak = 1;
+      longestStreak = 1;
       let runLength = 1;
 
       for (let i = 1; i < sorted.length; i++) {
@@ -337,40 +368,38 @@ async function syncHistory(username) {
       }
       longestStreak = Math.max(longestStreak, runLength);
 
-      // Use the higher of our calculated streak or LeetCode's own streak
-      // (LeetCode handles timezone edge cases we might miss)
-      let currentStreak = 0;
-      const mostRecent = allDates[0];
-      if (mostRecent === todayIST || mostRecent === yesterdayStr) {
+      const mostRecent = sorted[sorted.length - 1];
+      if (mostRecent === todayIST || mostRecent === yesterdayIST) {
         currentStreak = 1;
-        for (let i = 1; i < allDates.length; i++) {
-          if (dayDiff(allDates[i - 1], allDates[i]) === 1) {
+        for (let i = sorted.length - 2; i >= 0; i--) {
+          if (dayDiff(sorted[i+1], sorted[i]) === 1) {
             currentStreak++;
           } else {
             break;
           }
         }
       }
-
-      // Longest = max of all historical runs AND current active streak
-      data.streak.current = currentStreak;
-      data.streak.longest = Math.max(longestStreak, currentStreak);
-      data.streak.lastActiveDate = allDates[0];
+      
+      // Update user streak in Firestore
+      await db.collection('users').doc(userId).set({
+        streak: {
+          current: currentStreak,
+          longest: longestStreak,
+          lastActiveDate: mostRecent
+        }
+      }, { merge: true });
     }
 
-    store.writeData(data);
-
-    console.log(`[Sync] ✅ Synced ${daysAdded} new days. Streak: ${data.streak.current} (longest: ${data.streak.longest})`);
+    console.log(`[Sync] ✅ User ${userId}: Synced ${daysAdded} new days. Streak: ${currentStreak} (longest: ${longestStreak})`);
     return {
       success: true,
       daysAdded,
-      totalSolvedDays: allDates.length,
-      streak: data.streak,
-      leetcodeStreak: calendar.streak
+      totalSolvedDays: sorted.length,
+      streak: { current: currentStreak, longest: longestStreak }
     };
 
   } catch (err) {
-    console.error('[Sync] Error:', err.message);
+    console.error(`[Sync] Error syncing user ${userId}:`, err.message);
     return { success: false, error: err.message };
   }
 }
