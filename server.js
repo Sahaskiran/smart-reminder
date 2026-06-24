@@ -59,6 +59,12 @@ app.get('/api/user/status', authenticate, async (req, res) => {
       await store.updateUserProfile(uid, userProfile);
     }
 
+    // Ensure createdAt exists
+    if (userProfile && !userProfile.createdAt) {
+      userProfile.createdAt = new Date().toISOString();
+      await store.updateUserProfile(uid, { createdAt: userProfile.createdAt });
+    }
+
     if (!userProfile.leetcodeUsername) {
       return res.json({
         success: true,
@@ -69,8 +75,11 @@ app.get('/api/user/status', authenticate, async (req, res) => {
       });
     }
 
+    // Perform checkAll (passive, forceSync = false) to ensure today's status is dynamically updated on page load/poll
+    await checker.checkAll(uid, false);
     const today = await store.getToday(uid);
     const totalProblemsSolved = await checker.getUserProblemsSolved(userProfile.leetcodeUsername);
+    
     res.json({
       success: true,
       data: {
@@ -162,7 +171,7 @@ app.post('/api/user/check-now', authenticate, async (req, res) => {
     const { uid } = req.user;
     console.log(`\n[API] Manual check triggered for user ${uid}`);
     
-    const result = await checker.checkAll(uid);
+    const result = await checker.checkAll(uid, true);
     const today = await store.getToday(uid);
     
     res.json({
@@ -186,7 +195,7 @@ app.post('/api/user/test-reminder', authenticate, async (req, res) => {
     const { uid, email } = req.user;
     console.log(`\n[API] Manual test-reminder triggered for user ${uid}`);
     
-    const result = await checker.checkAll(uid);
+    const result = await checker.checkAll(uid, true);
     const today = await store.getToday(uid);
     const userProfile = await store.getUserProfile(uid);
 

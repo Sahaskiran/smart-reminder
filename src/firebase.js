@@ -4,11 +4,16 @@ const { getAuth } = require('firebase-admin/auth');
 const path = require('path');
 
 const serviceAccountPath = path.join(__dirname, '..', 'firebase-service-account.json');
+let credential;
 
 try {
-  initializeApp({
-    credential: cert(require(serviceAccountPath))
-  });
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    credential = cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON));
+  } else {
+    credential = cert(require(serviceAccountPath));
+  }
+  
+  initializeApp({ credential });
   console.log('[Firebase] ✅ Admin SDK initialized successfully');
 } catch (error) {
   console.error('[Firebase] ❌ Failed to initialize Firebase Admin SDK:', error.message);

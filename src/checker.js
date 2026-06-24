@@ -195,18 +195,32 @@ async function checkLeetCode(username) {
 /**
  * Check LeetCode for today's activity for a specific user
  */
-async function checkAll(userId) {
+async function checkAll(userId, forceSync = false) {
   const store = require('./store');
   const today = await store.getToday(userId);
 
-  // If already marked as solved today, no need to check API
+  // If already marked as solved today, no need to check API unless forceSync is requested
   if (today.activity?.solved) {
     console.log(`[Checker] ✅ User ${userId} already solved today (${today.activity.platform})`);
+    let currentStreak = today.streak.current;
+    let longestStreak = today.streak.longest;
+
+    if (forceSync) {
+      console.log(`[Checker] Force sync requested for user ${userId}. Recalculating streaks...`);
+      const syncResult = await syncHistory(userId);
+      currentStreak = syncResult.streak.current;
+      longestStreak = syncResult.streak.longest;
+    }
+
     return {
       solved: true,
       platform: today.activity.platform,
       details: today.activity,
-      alreadyRecorded: true
+      alreadyRecorded: true,
+      streak: {
+        current: currentStreak,
+        longest: longestStreak
+      }
     };
   }
 
@@ -219,7 +233,15 @@ async function checkAll(userId) {
 
   const leetcode = await checkLeetCode(leetcodeUsername);
 
+  let solvedToday = false;
+  let platform = null;
+  let details = leetcode.details;
+  let currentStreak = today.streak.current;
+  let longestStreak = today.streak.longest;
+
   if (leetcode.solved) {
+    solvedToday = true;
+    platform = 'leetcode';
     const now = new Date().toISOString();
     await store.updateToday(userId, {
       solved: true,
@@ -227,13 +249,22 @@ async function checkAll(userId) {
       solvedAt: now,
       manualEntry: false
     });
-    return { solved: true, platform: 'leetcode', details: leetcode.details };
+    
+    // Always sync history when today becomes solved to compute correct consecutive streaks
+    console.log(`[Checker] Goal met today for user ${userId}. Running history sync...`);
+    const syncResult = await syncHistory(userId);
+    currentStreak = syncResult.streak.current;
+    longestStreak = syncResult.streak.longest;
   }
 
   return {
-    solved: false,
-    platform: null,
-    details: leetcode.details
+    solved: solvedToday,
+    platform: platform,
+    details: details,
+    streak: {
+      current: currentStreak,
+      longest: longestStreak
+    }
   };
 }
 
@@ -340,8 +371,17 @@ async function syncHistory(userId) {
       await batch.commit();
     }
 
-    // Recalculate streak from scratch
-    const sorted = allActiveDates.sort();
+    // Merge any locally recorded solves that might not be in the calendar yet (or from other platforms)
+    existingLogsSnapshot.forEach(doc => {
+      const data = doc.data();
+      if (data.solved && !allActiveDates.includes(data.date)) {
+        allActiveDates.push(data.date);
+      }
+    });
+
+    // Recalculate streak using only dates since registration
+    const registrationDate = userProfile.createdAt ? userProfile.createdAt.split('T')[0] : store.getTodayIST();
+    const sorted = allActiveDates.filter(d => d >= registrationDate).sort();
     let longestStreak = 0;
     let currentStreak = 0;
 
