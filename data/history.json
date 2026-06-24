@@ -148,6 +148,13 @@
       "remindersSent": 0,
       "manualEntry": false,
       "source": "calendar-sync"
+    },
+    "2026-06-24": {
+      "solved": false,
+      "platform": null,
+      "solvedAt": null,
+      "remindersSent": 1,
+      "manualEntry": false
     }
   }
 }
