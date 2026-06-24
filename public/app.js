@@ -6,8 +6,8 @@ const firebaseConfig = {
   projectId: "smart-reminder-36155",
   storageBucket: "smart-reminder-36155.firebasestorage.app",
   messagingSenderId: "123987610859",
-  appId: "1:123987610859:web:1748561329c77aec2e42ae",
-  measurementId: "G-L4QWC9Z07G"
+  appId: "1:123987610859:web:a1d9e4f02c68b6122e42ae",
+  measurementId: "G-7GNN8NWH85"
 };
 
 firebase.initializeApp(firebaseConfig);
