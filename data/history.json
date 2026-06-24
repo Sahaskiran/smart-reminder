@@ -1,8 +1,8 @@
 {
   "streak": {
-    "current": 0,
-    "longest": 0,
-    "lastActiveDate": "2026-06-22"
+    "current": 1,
+    "longest": 1,
+    "lastActiveDate": "2026-06-24"
   },
   "days": {
     "2026-06-20": {
@@ -150,9 +150,9 @@
       "source": "calendar-sync"
     },
     "2026-06-24": {
-      "solved": false,
-      "platform": null,
-      "solvedAt": null,
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-06-24T04:31:39.252Z",
       "remindersSent": 4,
       "manualEntry": false
     }
