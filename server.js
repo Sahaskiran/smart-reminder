@@ -13,6 +13,7 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/data', express.static(path.join(__dirname, 'data')));
 
 // ──────────────────────────────────────────────
 // API Routes
@@ -116,6 +117,23 @@ app.post('/api/test-reminder', async (req, res) => {
     }
   } catch (err) {
     console.error('[API] Test reminder failed:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ──────────────────────────────────────────────
+// Sync LeetCode history
+// ──────────────────────────────────────────────
+app.post('/api/sync', async (req, res) => {
+  try {
+    console.log('\n[API] Syncing LeetCode history...');
+    const result = await checker.syncHistory(process.env.LEETCODE_USERNAME);
+    if (result.success) {
+      res.json({ success: true, data: result });
+    } else {
+      res.status(500).json({ success: false, error: result.error });
+    }
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });

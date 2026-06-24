@@ -1,8 +1,8 @@
 {
   "streak": {
-    "current": 1,
-    "longest": 1,
-    "lastActiveDate": "2026-06-20"
+    "current": 0,
+    "longest": 0,
+    "lastActiveDate": "2026-06-22"
   },
   "days": {
     "2026-06-20": {
@@ -14,18 +14,140 @@
       "congratsSent": true
     },
     "2026-06-22": {
-      "solved": false,
-      "platform": null,
-      "solvedAt": null,
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-06-22T16:56:48.237Z",
       "remindersSent": 1,
-      "manualEntry": false
+      "manualEntry": false,
+      "congratsSent": true
     },
-    "2026-06-23": {
-      "solved": false,
-      "platform": null,
-      "solvedAt": null,
-      "remindersSent": 1,
-      "manualEntry": false
+    "2026-01-24": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-01-24T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-01-27": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-01-27T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-01-28": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-01-28T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-01-30": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-01-30T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-01-31": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-01-31T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-02-01": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-02-01T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-02-02": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-02-02T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-02-03": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-02-03T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-02-04": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-02-04T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-02-05": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-02-05T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-02-06": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-02-06T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-02-07": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-02-07T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-02-08": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-02-08T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-02-09": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-02-09T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-02-10": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-02-10T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
+    },
+    "2026-05-09": {
+      "solved": true,
+      "platform": "leetcode",
+      "solvedAt": "2026-05-09T00:00:00.000Z",
+      "remindersSent": 0,
+      "manualEntry": false,
+      "source": "calendar-sync"
     }
   }
 }

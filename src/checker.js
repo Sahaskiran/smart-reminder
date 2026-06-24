@@ -231,8 +231,152 @@ async function checkAll() {
   };
 }
 
+/**
+ * Sync historical LeetCode activity from the submission calendar
+ * Backfills all past active days into history.json and recalculates streak
+ */
+async function syncHistory(username) {
+  if (!username) {
+    return { success: false, error: 'No LeetCode username configured' };
+  }
+
+  const store = require('./store');
+
+  try {
+    console.log(`[Sync] Fetching full submission calendar for: ${username}`);
+
+    const calendarResult = await fetchJSON('https://leetcode.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Referer': 'https://leetcode.com'
+      },
+      body: {
+        query: `
+          query userProfileCalendar($username: String!, $year: Int) {
+            matchedUser(username: $username) {
+              userCalendar(year: $year) {
+                activeYears
+                streak
+                totalActiveDays
+                submissionCalendar
+              }
+            }
+          }
+        `,
+        variables: { username, year: new Date().getFullYear() }
+      }
+    });
+
+    const calendar = calendarResult.data?.matchedUser?.userCalendar;
+    if (!calendar?.submissionCalendar) {
+      return { success: false, error: 'Could not fetch submission calendar' };
+    }
+
+    const calMap = JSON.parse(calendar.submissionCalendar);
+    const data = store.readData();
+    let daysAdded = 0;
+
+    // Convert each Unix timestamp key to IST date and add to history
+    for (const [timestamp, count] of Object.entries(calMap)) {
+      if (count <= 0) continue;
+
+      // Convert UTC timestamp to IST date string
+      const utcMs = parseInt(timestamp) * 1000;
+      const istOffset = 5.5 * 60 * 60 * 1000;
+      const istDate = new Date(utcMs + istOffset);
+      const dateStr = istDate.toISOString().split('T')[0];
+
+      // Only backfill if we don't already have a "solved" record for this day
+      if (!data.days[dateStr] || !data.days[dateStr].solved) {
+        data.days[dateStr] = {
+          solved: true,
+          platform: 'leetcode',
+          solvedAt: new Date(utcMs).toISOString(),
+          remindersSent: 0,
+          manualEntry: false,
+          source: 'calendar-sync'
+        };
+        daysAdded++;
+      }
+    }
+
+    // Recalculate streak from scratch using all days
+    const allDates = Object.keys(data.days)
+      .filter(d => data.days[d].solved)
+      .sort()
+      .reverse(); // Most recent first
+
+    if (allDates.length > 0) {
+      const todayIST = store.getTodayIST();
+      const yesterday = new Date();
+      const istOffset = 5.5 * 60 * 60 * 1000;
+      const istNow = new Date(yesterday.getTime() + istOffset + yesterday.getTimezoneOffset() * 60 * 1000);
+      istNow.setDate(istNow.getDate() - 1);
+      const yesterdayStr = istNow.toISOString().split('T')[0];
+
+      // Helper: difference in days between two YYYY-MM-DD strings
+      function dayDiff(a, b) {
+        const msA = Date.UTC(+a.slice(0,4), +a.slice(5,7)-1, +a.slice(8,10));
+        const msB = Date.UTC(+b.slice(0,4), +b.slice(5,7)-1, +b.slice(8,10));
+        return Math.round((msA - msB) / (24 * 60 * 60 * 1000));
+      }
+
+      // Sort oldest first for scanning all runs
+      const sorted = [...allDates].sort();
+      let longestStreak = 1;
+      let runLength = 1;
+
+      for (let i = 1; i < sorted.length; i++) {
+        if (dayDiff(sorted[i], sorted[i - 1]) === 1) {
+          runLength++;
+        } else {
+          longestStreak = Math.max(longestStreak, runLength);
+          runLength = 1;
+        }
+      }
+      longestStreak = Math.max(longestStreak, runLength);
+
+      // Use the higher of our calculated streak or LeetCode's own streak
+      // (LeetCode handles timezone edge cases we might miss)
+      let currentStreak = 0;
+      const mostRecent = allDates[0];
+      if (mostRecent === todayIST || mostRecent === yesterdayStr) {
+        currentStreak = 1;
+        for (let i = 1; i < allDates.length; i++) {
+          if (dayDiff(allDates[i - 1], allDates[i]) === 1) {
+            currentStreak++;
+          } else {
+            break;
+          }
+        }
+      }
+
+      // Longest = max of all historical runs AND current active streak
+      data.streak.current = currentStreak;
+      data.streak.longest = Math.max(longestStreak, currentStreak);
+      data.streak.lastActiveDate = allDates[0];
+    }
+
+    store.writeData(data);
+
+    console.log(`[Sync] ✅ Synced ${daysAdded} new days. Streak: ${data.streak.current} (longest: ${data.streak.longest})`);
+    return {
+      success: true,
+      daysAdded,
+      totalSolvedDays: allDates.length,
+      streak: data.streak,
+      leetcodeStreak: calendar.streak
+    };
+
+  } catch (err) {
+    console.error('[Sync] Error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
 module.exports = {
   checkLeetCode,
-  checkAll
+  checkAll,
+  syncHistory
 };
-

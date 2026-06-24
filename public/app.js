@@ -193,28 +193,128 @@ async function fetchAndRenderData() {
   }
 }
 
-// Manual Activity Check — refresh dashboard data from history.json
+// Detect if running locally (has backend) or on GitHub Pages (static only)
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+// GitHub Actions workflow trigger for static deployment
+const GITHUB_REPO = 'Sahaskiran/smart-reminder';
+const WORKFLOW_FILE = 'check-and-deploy.yml';
+
+function getGitHubToken() {
+  let token = localStorage.getItem('github_pat');
+  if (!token) {
+    token = prompt(
+      '🔑 Enter your GitHub Personal Access Token (PAT)\n\n' +
+      'This is needed to trigger email checks from the dashboard.\n' +
+      'Create one at: github.com → Settings → Developer Settings → Personal Access Tokens → Fine-grained\n' +
+      'Give it "Actions: Read & Write" permission for the smart-reminder repo.\n\n' +
+      'It will be saved in your browser for future use.'
+    );
+    if (token) {
+      localStorage.setItem('github_pat', token.trim());
+    }
+  }
+  return token;
+}
+
+async function triggerGitHubWorkflow(force = false) {
+  const token = getGitHubToken();
+  if (!token) {
+    showToast('GitHub token is required to trigger email checks.', 'error');
+    return false;
+  }
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ref: 'main',
+        inputs: { force: force.toString() }
+      })
+    });
+
+    if (res.status === 204) {
+      return true;
+    } else if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem('github_pat');
+      showToast('Invalid token — please try again with a valid PAT.', 'error');
+      return false;
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(`Failed: ${data.message || res.statusText}`, 'error');
+      return false;
+    }
+  } catch (err) {
+    showToast('Network error triggering workflow.', 'error');
+    return false;
+  }
+}
+
+// Manual Activity Check
 checkNowBtn.addEventListener('click', async () => {
   checkNowBtn.disabled = true;
-  checkNowBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Refreshing...';
-  
+  checkNowBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
+
   try {
+    if (isLocal) {
+      // On localhost — call the backend API directly
+      const res = await fetch('/api/check-now', { method: 'POST' });
+      const result = await res.json();
+      if (result.success) {
+        if (result.data.solved) {
+          showToast(`Activity detected on ${result.data.platform.toUpperCase()}! Streak saved.`);
+        } else {
+          showToast('No recent activity found.', 'error');
+        }
+      }
+    } else {
+      // On GitHub Pages — just refresh the static data
+      await fetchAndRenderData();
+      showToast('Dashboard refreshed with latest data!', 'success');
+    }
     await fetchAndRenderData();
-    showToast('Dashboard refreshed with latest data!', 'success');
   } catch (err) {
-    showToast('Failed to refresh data.', 'error');
+    showToast('Failed to check activity.', 'error');
   } finally {
     checkNowBtn.disabled = false;
     checkNowBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> Check Activity';
   }
 });
 
-// Test Email — must be triggered via GitHub Actions (no backend on static site)
-testEmailBtn.addEventListener('click', () => {
-  showToast('Opening GitHub Actions — click "Run workflow" with Force enabled to send a test email.', 'success');
-  setTimeout(() => {
-    window.open('https://github.com/Sahaskiran/smart-reminder/actions/workflows/check-and-deploy.yml', '_blank');
-  }, 2000);
+// Test Email
+testEmailBtn.addEventListener('click', async () => {
+  testEmailBtn.disabled = true;
+  testEmailBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+  try {
+    if (isLocal) {
+      // On localhost — call the backend API directly
+      const res = await fetch('/api/test-reminder', { method: 'POST' });
+      const result = await res.json();
+      if (result.success) {
+        showToast('✅ Test email sent! Check your inbox.', 'success');
+      } else {
+        showToast('Failed to send email: ' + (result.error || 'Unknown error'), 'error');
+      }
+    } else {
+      // On GitHub Pages — trigger the GitHub Actions workflow with force=true
+      showToast('Triggering email check via GitHub Actions...', 'success');
+      const triggered = await triggerGitHubWorkflow(true);
+      if (triggered) {
+        showToast('✅ Workflow triggered! Email will arrive in ~2 minutes.', 'success');
+      }
+    }
+  } catch (err) {
+    showToast('Failed to send test email.', 'error');
+  } finally {
+    testEmailBtn.disabled = false;
+    testEmailBtn.innerHTML = '<i class="fa-solid fa-envelope"></i>';
+  }
 });
 
 // App Initialization
