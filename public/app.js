@@ -273,9 +273,12 @@ checkNowBtn.addEventListener('click', async () => {
         }
       }
     } else {
-      // On GitHub Pages — just refresh the static data
-      await fetchAndRenderData();
-      showToast('Dashboard refreshed with latest data!', 'success');
+      // On GitHub Pages — trigger the GitHub Actions workflow to check activity
+      showToast('Triggering activity check via GitHub Actions...', 'success');
+      const triggered = await triggerGitHubWorkflow(false);
+      if (triggered) {
+        showToast('✅ Workflow triggered! The dashboard will update in ~2 minutes.', 'success');
+      }
     }
     await fetchAndRenderData();
   } catch (err) {
