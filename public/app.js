@@ -107,22 +107,22 @@ async function apiCall(endpoint, method = 'GET', body = null) {
 }
 
 // Toggle Auth mode (Login vs Signup)
-authToggleLink.addEventListener('click', (e) => {
-  e.preventDefault();
-  isSignUpMode = !isSignUpMode;
-  if (isSignUpMode) {
-    authTitle.textContent = 'Create Account';
-    authSubtitle.textContent = 'Join the gang & build consistency';
-    authSubmitBtn.textContent = 'Sign Up';
-    authToggleMsg.innerHTML = 'Already have an account? <a href="#" id="auth-toggle-link">Sign In</a>';
-  } else {
-    authTitle.textContent = 'Welcome Gang';
-    authSubtitle.textContent = 'Login to check your coding streak';
-    authSubmitBtn.textContent = 'Sign In';
-    authToggleMsg.innerHTML = "Don't have an account? <a href="#" id="auth-toggle-link">Create Account</a>";
+authToggleMsg.addEventListener('click', (e) => {
+  if (e.target && e.target.id === 'auth-toggle-link') {
+    e.preventDefault();
+    isSignUpMode = !isSignUpMode;
+    if (isSignUpMode) {
+      authTitle.textContent = 'Create Account';
+      authSubtitle.textContent = 'Join the gang & build consistency';
+      authSubmitBtn.textContent = 'Sign Up';
+      authToggleMsg.innerHTML = 'Already have an account? <a href="#" id="auth-toggle-link">Sign In</a>';
+    } else {
+      authTitle.textContent = 'Welcome Gang';
+      authSubtitle.textContent = 'Login to check your coding streak';
+      authSubmitBtn.textContent = 'Sign In';
+      authToggleMsg.innerHTML = 'Don\'t have an account? <a href="#" id="auth-toggle-link">Create Account</a>';
+    }
   }
-  // Re-bind click listener for the toggled element
-  document.getElementById('auth-toggle-link').addEventListener('click', arguments.callee);
 });
 
 // Auth form submit

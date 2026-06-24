@@ -9,10 +9,10 @@ async function runTest() {
   console.log('==================================================');
 
   try {
-    // 1. Fetch collections list
-    const collections = await db.listCollections();
-    console.log('Successfully connected to Firestore! Collections present:');
-    collections.forEach(col => console.log(` - ${col.id}`));
+    // 1. Fetch collections list (Skipped - empty database throws NOT_FOUND)
+    // const collections = await db.listCollections();
+    // console.log('Successfully connected to Firestore! Collections present:');
+    // collections.forEach(col => console.log(` - ${col.id}`));
 
     // 2. Try creating a mock user
     const mockUid = 'test-uid-' + Date.now();
