@@ -42,10 +42,20 @@ async function getToday(userId) {
   const logDoc = await db.collection('activity_logs').doc(docId).get();
   const userProfile = await getUserProfile(userId);
 
+  let streak = userProfile ? (userProfile.streak || { current: 0, longest: 0, lastActiveDate: null }) : { current: 0, longest: 0, lastActiveDate: null };
+
+  const yesterday = getYesterdayIST();
+  if (streak.lastActiveDate && streak.lastActiveDate !== today && streak.lastActiveDate !== yesterday) {
+    if (streak.current > 0) {
+      streak.current = 0;
+      await db.collection('users').doc(userId).set({ streak }, { merge: true });
+    }
+  }
+
   return {
     date: today,
     activity: logDoc.exists ? logDoc.data() : null,
-    streak: userProfile ? (userProfile.streak || { current: 0, longest: 0, lastActiveDate: null }) : { current: 0, longest: 0, lastActiveDate: null }
+    streak
   };
 }
 

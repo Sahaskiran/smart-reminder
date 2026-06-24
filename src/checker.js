@@ -404,8 +404,47 @@ async function syncHistory(userId) {
   }
 }
 
+/**
+ * Fetch total questions solved directly from LeetCode GraphQL
+ */
+async function getUserProblemsSolved(username) {
+  if (!username) return 0;
+  try {
+    const result = await fetchJSON('https://leetcode.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Referer': 'https://leetcode.com'
+      },
+      body: {
+        query: `
+          query userProblemsSolved($username: String!) {
+            matchedUser(username: $username) {
+              submitStats {
+                acSubmissionNum {
+                  difficulty
+                  count
+                }
+              }
+            }
+          }
+        `,
+        variables: { username }
+      }
+    });
+
+    const stats = result.data?.matchedUser?.submitStats?.acSubmissionNum || [];
+    const allStat = stats.find(s => s.difficulty === 'All');
+    return allStat ? allStat.count : 0;
+  } catch (err) {
+    console.error(`[Checker] Error fetching total solved count for ${username}:`, err.message);
+    return 0;
+  }
+}
+
 module.exports = {
   checkLeetCode,
   checkAll,
-  syncHistory
+  syncHistory,
+  getUserProblemsSolved
 };

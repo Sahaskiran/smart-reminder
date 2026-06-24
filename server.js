@@ -70,6 +70,7 @@ app.get('/api/user/status', authenticate, async (req, res) => {
     }
 
     const today = await store.getToday(uid);
+    const totalProblemsSolved = await checker.getUserProblemsSolved(userProfile.leetcodeUsername);
     res.json({
       success: true,
       data: {
@@ -81,7 +82,8 @@ app.get('/api/user/status', authenticate, async (req, res) => {
         remindersSent: today.activity?.remindersSent || 0,
         manualEntry: today.activity?.manualEntry || false,
         streak: today.streak,
-        leetcodeUsername: userProfile.leetcodeUsername
+        leetcodeUsername: userProfile.leetcodeUsername,
+        totalProblemsSolved
       }
     });
   } catch (err) {
@@ -96,9 +98,17 @@ app.get('/api/user/status', authenticate, async (req, res) => {
 app.get('/api/user/history', authenticate, async (req, res) => {
   try {
     const { uid } = req.user;
+    const userProfile = await store.getUserProfile(uid);
+    const totalProblemsSolved = await checker.getUserProblemsSolved(userProfile?.leetcodeUsername);
     const days = parseInt(req.query.days) || 90;
     const history = await store.getHistory(uid, days);
-    res.json({ success: true, data: history });
+    res.json({
+      success: true,
+      data: {
+        ...history,
+        totalProblemsSolved
+      }
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

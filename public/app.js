@@ -264,7 +264,7 @@ async function loadDashboard() {
     const historyRes = await apiCall('/api/user/history');
     const history = historyRes.data;
 
-    totalSolvedDaysEl.textContent = history.totalSolved;
+    totalSolvedDaysEl.textContent = history.totalProblemsSolved || status.totalProblemsSolved || 0;
     heatmapGridEl.innerHTML = '';
 
     // Render left-to-right (oldest first)
