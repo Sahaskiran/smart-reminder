@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: smart-reminder
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: EMAIL_FROM
+        sync: false
+        description: "The sender email address for SMTP (e.g. your-email@gmail.com)"
+      - key: EMAIL_APP_PASSWORD
+        sync: false
+        description: "The Google App Password for Gmail SMTP authentication"
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+        description: "The complete JSON string of your firebase-service-account.json"
