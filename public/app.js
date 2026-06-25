@@ -1,13 +1,12 @@
 // Initialize Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyCmLt52foqRYkxSXAiEZXhsVYy0d8kN9j0",
-  authDomain: "smart-reminder-36155.firebaseapp.com",
-  databaseURL: "https://smart-reminder-36155-default-rtdb.firebaseio.com",
-  projectId: "smart-reminder-36155",
-  storageBucket: "smart-reminder-36155.firebasestorage.app",
-  messagingSenderId: "123987610859",
-  appId: "1:123987610859:web:a1d9e4f02c68b6122e42ae",
-  measurementId: "G-7GNN8NWH85"
+  apiKey: "AIzaSyB3s30aWjASoForT7WR3cL-aks3kkkSLus",
+  authDomain: "tracker-aa729.firebaseapp.com",
+  projectId: "tracker-aa729",
+  storageBucket: "tracker-aa729.firebasestorage.app",
+  messagingSenderId: "654166491861",
+  appId: "1:654166491861:web:495fdf7775f665864a185c",
+  measurementId: "G-DYVNDYM2DV"
 };
 
 firebase.initializeApp(firebaseConfig);

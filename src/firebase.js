@@ -19,7 +19,7 @@ try {
   console.error('[Firebase] ❌ Failed to initialize Firebase Admin SDK:', error.message);
 }
 
-const db = getFirestore('default');
+const db = getFirestore();
 const auth = getAuth();
 
 module.exports = {
