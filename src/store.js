@@ -155,8 +155,6 @@ async function getHistory(userId, numDays = 90) {
   
   const logsSnapshot = await db.collection('activity_logs')
     .where('userId', '==', userId)
-    .orderBy('date', 'desc')
-    .limit(numDays)
     .get();
 
   const logsMap = {};

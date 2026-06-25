@@ -379,9 +379,8 @@ async function syncHistory(userId) {
       }
     });
 
-    // Recalculate streak using only dates since registration
-    const registrationDate = userProfile.createdAt ? userProfile.createdAt.split('T')[0] : store.getTodayIST();
-    const sorted = allActiveDates.filter(d => d >= registrationDate).sort();
+    // Recalculate streak using all synced active dates
+    const sorted = allActiveDates.sort();
     let longestStreak = 0;
     let currentStreak = 0;
 
