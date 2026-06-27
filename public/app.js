@@ -63,7 +63,7 @@ function showToast(message, type = 'success') {
   const toastMsg = document.getElementById('toast-message');
 
   toast.className = `toast show ${type}`;
-  toastMsg.textContent = message;
+  toastMsg.innerHTML = message.replace(/\n/g, '<br>');
 
   if (type === 'success') {
     toastIcon.className = 'fa-solid fa-circle-check toast-icon';
@@ -337,11 +337,7 @@ testEmailBtn.addEventListener('click', async () => {
   try {
     const res = await apiCall('/api/user/test-reminder', 'POST');
     if (res.success) {
-      showToast('✅ Test email sent! Check your inbox.', 'success');
-      // Show spam tip after a short delay
-      setTimeout(() => {
-        showToast('💡 Tip: If the email landed in Spam, open it and click "Not spam" so future reminders go to your inbox.', 'info');
-      }, 500);
+      showToast('✅ Test email sent! Check your inbox.\n💡 If it landed in Spam, open it and click "Not spam" so future reminders go to your inbox.', 'info');
       await loadDashboard();
     }
   } catch (err) {
