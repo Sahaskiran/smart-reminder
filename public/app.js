@@ -67,13 +67,16 @@ function showToast(message, type = 'success') {
 
   if (type === 'success') {
     toastIcon.className = 'fa-solid fa-circle-check toast-icon';
+  } else if (type === 'info') {
+    toastIcon.className = 'fa-solid fa-circle-info toast-icon';
   } else {
     toastIcon.className = 'fa-solid fa-triangle-exclamation toast-icon';
   }
 
+  const duration = type === 'info' ? 7000 : 4000;
   setTimeout(() => {
     toast.classList.remove('show');
-  }, 4000);
+  }, duration);
 }
 
 // Helper for making API calls with Authorization header
@@ -335,6 +338,10 @@ testEmailBtn.addEventListener('click', async () => {
     const res = await apiCall('/api/user/test-reminder', 'POST');
     if (res.success) {
       showToast('✅ Test email sent! Check your inbox.', 'success');
+      // Show spam tip after a short delay
+      setTimeout(() => {
+        showToast('💡 Tip: If the email landed in Spam, open it and click "Not spam" so future reminders go to your inbox.', 'info');
+      }, 4500);
       await loadDashboard();
     }
   } catch (err) {
