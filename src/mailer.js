@@ -57,13 +57,23 @@ async function sendEmail({ to, subject, html }) {
           }],
           from: {
             email: fromEmail,
-            name: '🔥 Smart Reminder'
+            name: 'Smart Reminder'
+          },
+          reply_to: {
+            email: fromEmail,
+            name: 'Smart Reminder'
           },
           subject: subject,
-          content: [{
-            type: 'text/html',
-            value: html
-          }]
+          content: [
+            {
+              type: 'text/plain',
+              value: html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+            },
+            {
+              type: 'text/html',
+              value: html
+            }
+          ]
         })
       });
 
@@ -91,10 +101,16 @@ async function sendEmail({ to, subject, html }) {
 
   try {
     const info = await transporter.sendMail({
-      from: `"🔥 Smart Reminder" <${fromEmail}>`,
+      from: `"Smart Reminder" <${fromEmail}>`,
+      replyTo: fromEmail,
       to: toEmail,
       subject,
-      html
+      text: html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim(),
+      html,
+      headers: {
+        'X-Priority': '3',
+        'X-Mailer': 'Smart Reminder App'
+      }
     });
     console.log(`[Mailer] ✅ Email sent successfully via SMTP: ${info.messageId}`);
     return true;
@@ -223,7 +239,8 @@ async function sendReminder(toEmail, data) {
     </html>
   `;
 
-  const subject = `${urgency} You haven't coded today! (Streak: ${data.streak} days) — Reminder #${data.reminderCount}`;
+  const cleanUrgency = data.reminderCount >= 3 ? 'FINAL' : data.reminderCount >= 2 ? 'Important' : 'Reminder';
+  const subject = `[${cleanUrgency}] You haven't coded today - Streak: ${data.streak} days (Reminder ${data.reminderCount} of 4)`;
   return await sendEmail({ to: toEmail, subject, html });
 }
 
@@ -296,7 +313,7 @@ async function sendStreakUpdate(toEmail, data) {
     </html>
   `;
 
-  const subject = `🎉 Streak updated! ${data.streak} days and counting!`;
+  const subject = `Streak updated! ${data.streak} days and counting - Keep going!`;
   return await sendEmail({ to: toEmail, subject, html });
 }
 
