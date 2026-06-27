@@ -341,7 +341,7 @@ testEmailBtn.addEventListener('click', async () => {
       // Show spam tip after a short delay
       setTimeout(() => {
         showToast('💡 Tip: If the email landed in Spam, open it and click "Not spam" so future reminders go to your inbox.', 'info');
-      }, 4500);
+      }, 500);
       await loadDashboard();
     }
   } catch (err) {
