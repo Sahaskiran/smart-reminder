@@ -90,17 +90,23 @@ async function runCheck(timeLabel) {
  */
 function initScheduler() {
   console.log('[Scheduler] 📅 Initializing reminder schedule (IST) for multiple users');
+  console.log('[Scheduler]   • 6:00 PM  (18:00)');
+  console.log('[Scheduler]   • 7:00 PM  (19:00)');
+  console.log('[Scheduler]   • 8:00 PM  (20:00)');
   console.log('[Scheduler]   • 9:00 PM  (21:00)');
   console.log('[Scheduler]   • 10:00 PM (22:00)');
   console.log('[Scheduler]   • 11:00 PM (23:00)');
-  console.log('[Scheduler]   • 12:00 AM (00:00)');
+  console.log('[Scheduler]   • 11:55 PM (23:55)');
 
   // Schedule with timezone-aware cron
   scheduledJobs = [
+    cron.schedule('0 18 * * *', () => runCheck('6:00 PM'), { timezone: 'Asia/Kolkata' }),
+    cron.schedule('0 19 * * *', () => runCheck('7:00 PM'), { timezone: 'Asia/Kolkata' }),
+    cron.schedule('0 20 * * *', () => runCheck('8:00 PM'), { timezone: 'Asia/Kolkata' }),
     cron.schedule('0 21 * * *', () => runCheck('9:00 PM'), { timezone: 'Asia/Kolkata' }),
     cron.schedule('0 22 * * *', () => runCheck('10:00 PM'), { timezone: 'Asia/Kolkata' }),
     cron.schedule('0 23 * * *', () => runCheck('11:00 PM'), { timezone: 'Asia/Kolkata' }),
-    cron.schedule('0 0 * * *', () => runCheck('12:00 AM'), { timezone: 'Asia/Kolkata' })
+    cron.schedule('55 23 * * *', () => runCheck('11:55 PM'), { timezone: 'Asia/Kolkata' })
   ];
 
   console.log('[Scheduler] ✅ All cron jobs scheduled successfully\n');

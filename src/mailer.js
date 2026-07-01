@@ -6,17 +6,11 @@ let transporter = null;
  * Initialize the email transporter
  */
 function initTransporter() {
-  const sendgridKey = process.env.SENDGRID_API_KEY;
-  if (sendgridKey && sendgridKey !== 'your-sendgrid-api-key') {
-    console.log('[Mailer] ✅ SendGrid API configured for outgoing mail (SMTP disabled)');
-    return null;
-  }
-
   const user = process.env.EMAIL_FROM;
   const pass = process.env.EMAIL_APP_PASSWORD;
 
   if (!user || !pass || user === 'your-email@gmail.com') {
-    console.warn('[Mailer] ⚠️  Email not configured. Set EMAIL_FROM and EMAIL_APP_PASSWORD (or SENDGRID_API_KEY) in .env');
+    console.warn('[Mailer] ⚠️  Email not configured. Set EMAIL_FROM and EMAIL_APP_PASSWORD in .env');
     return null;
   }
 
@@ -35,62 +29,12 @@ function initTransporter() {
 }
 
 /**
- * Unified helper to send email via SendGrid HTTP API or SMTP fallback
+ * Send email via SMTP
  */
 async function sendEmail({ to, subject, html }) {
-  const sendgridKey = process.env.SENDGRID_API_KEY;
   const fromEmail = process.env.EMAIL_FROM;
   const toEmail = to || process.env.EMAIL_TO;
 
-  if (sendgridKey && sendgridKey !== 'your-sendgrid-api-key') {
-    console.log('[Mailer] Attempting email send via SendGrid HTTP API...');
-    try {
-      const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${sendgridKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          personalizations: [{
-            to: [{ email: toEmail }]
-          }],
-          from: {
-            email: fromEmail,
-            name: 'Smart Reminder'
-          },
-          reply_to: {
-            email: fromEmail,
-            name: 'Smart Reminder'
-          },
-          subject: subject,
-          content: [
-            {
-              type: 'text/plain',
-              value: html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
-            },
-            {
-              type: 'text/html',
-              value: html
-            }
-          ]
-        })
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`SendGrid API error (${response.status}): ${errText}`);
-      }
-
-      console.log('[Mailer] ✅ Email sent successfully via SendGrid API');
-      return true;
-    } catch (err) {
-      console.error('[Mailer] ❌ SendGrid API failed:', err.message);
-      return false;
-    }
-  }
-
-  // Fallback to SMTP
   if (!transporter) {
     initTransporter();
   }
@@ -146,7 +90,7 @@ function getMotivationalQuote() {
 async function sendReminder(toEmail, data) {
   const quote = getMotivationalQuote();
   const streakEmoji = data.streak > 0 ? '🔥' : '❄️';
-  const urgency = data.reminderCount >= 3 ? '🚨 FINAL' : data.reminderCount >= 2 ? '⚠️' : '💡';
+  const urgency = data.reminderCount >= 6 ? '🚨 FINAL' : data.reminderCount >= 4 ? '⚠️' : '💡';
 
   const html = `
     <!DOCTYPE html>
@@ -168,7 +112,7 @@ async function sendReminder(toEmail, data) {
                     ${urgency} Coding Reminder
                   </h1>
                   <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">
-                    ${data.time} — Reminder #${data.reminderCount} of 4
+                    ${data.time} — Reminder #${data.reminderCount} of 7
                   </p>
                 </td>
               </tr>
@@ -239,8 +183,8 @@ async function sendReminder(toEmail, data) {
     </html>
   `;
 
-  const cleanUrgency = data.reminderCount >= 3 ? 'FINAL' : data.reminderCount >= 2 ? 'Important' : 'Reminder';
-  const subject = `[${cleanUrgency}] You haven't coded today - Streak: ${data.streak} days (Reminder ${data.reminderCount} of 4)`;
+  const cleanUrgency = data.reminderCount >= 6 ? 'FINAL' : data.reminderCount >= 4 ? 'Important' : 'Reminder';
+  const subject = `[${cleanUrgency}] You haven't coded today - Streak: ${data.streak} days (Reminder ${data.reminderCount} of 7)`;
   return await sendEmail({ to: toEmail, subject, html });
 }
 
