@@ -6,8 +6,6 @@ services:
     buildCommand: npm install
     startCommand: npm start
     envVars:
-      - key: PORT
-        value: 3000
       - key: EMAIL_FROM
         sync: false
         description: "The sender email address for SMTP (e.g. your-email@gmail.com)"
